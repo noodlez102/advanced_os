@@ -80,7 +80,7 @@ struct vm_virtual_state *vmm;
 
 void trap_and_emulate(void) {
     /* Comes here when a VM tries to execute a supervisor instruction. */
-
+    printf("entered trap_and_emulate\n");
     /* Retrieve all required values from the instruction */
     uint64 addr     = 0;
     uint32 op       = 0;

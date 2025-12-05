@@ -50,7 +50,19 @@ usertrap(void)
   // save user program counter.
   p->trapframe->epc = r_sepc();
 
-  if(r_scause() == 8){
+  
+  
+  if (p->proc_te_vm == 1 && (r_scause() == 2))
+  {
+
+    trap_and_emulate();
+    printf("exited trap_and _emulate\n");
+    if(p->proc_te_vm == 1 && r_scause() == 15){
+        kill(p->pid);
+        printf("Killed from trap.c");
+    }
+      
+  }else if(r_scause() == 8){
     // system call
     if(killed(p))
       exit(-1);

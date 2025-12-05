@@ -31,6 +31,12 @@ exec(char *path, char **argv)
   pagetable_t pagetable = 0, oldpagetable;
   struct proc *p = myproc();
 
+  if(strncmp(path, "vm-", 3)==0)
+  {
+    printf("noticied that in vm\n");
+    p->proc_te_vm = 1;
+  }
+
   begin_op();
 
   if((ip = namei(path)) == 0){
