@@ -56,7 +56,6 @@ struct vm_virtual_state {
     struct vm_reg mie;
     struct vm_reg mtvec;
     struct vm_reg mcounteren;
-    struct vm_reg mstatush;
 
     // Machine trap handling registers
     struct vm_reg mscratch;
@@ -69,7 +68,7 @@ struct vm_virtual_state {
 
     //Machine PMP
     struct vm_reg pmpaddr[64];
-    struct vm_reg pmpcfg[16];
+    struct vm_reg pmpcfg[8];
 
     uint64 current_exec_mode; 
 };
@@ -79,15 +78,24 @@ struct vm_virtual_state *vmm;
 // printf("(EC at %p)\n", p->trapframe->epc);
 
 void trap_and_emulate(void) {
+    struct proc *p = myproc();
+    printf("(EC at %p)\n", p->trapframe->epc);
+
+    uint32 instr = 0;
+    if(copyin(p->pagetable, (char *)&instr, p->trapframe->epc, sizeof(instr)) < 0){
+        printf("Cannot fetch instruction at %p\n", p->trapframe->epc);
+    }
+
     /* Comes here when a VM tries to execute a supervisor instruction. */
     printf("entered trap_and_emulate\n");
     /* Retrieve all required values from the instruction */
-    uint64 addr     = 0;
-    uint32 op       = 0;
-    uint32 rd       = 0;
-    uint32 funct3   = 0;
-    uint32 rs1      = 0;
-    uint32 uimm     = 0;
+    uint64 addr     = p->trapframe->epc;
+    uint32 op       = instr & 0x7f;
+    uint32 rd     = (instr >> 7) & 0x1f;
+    uint32 funct3 = (instr >> 12) & 0x7;
+    uint32 rs1    = (instr >> 15) & 0x1f;
+    uint32 uimm   = (instr >> 20) & 0xfff;
+
 
     /* Print the statement */
     printf("(PI at %p) op = %x, rd = %x, funct3 = %x, rs1 = %x, uimm = %x\n", 
@@ -238,10 +246,6 @@ void trap_and_emulate_init(void) {
     vmm->mcounteren.mode =VM_MODE_M;
     vmm->mcounteren.val  = 0;
 
-    vmm->mstatush.code = 0x310;
-    vmm->mstatush.mode =VM_MODE_M;
-    vmm->mstatush.val  = 0;
-
 
     //
     // -------------------------------
@@ -282,7 +286,7 @@ void trap_and_emulate_init(void) {
     // PMP Registers
     // -------------------------------
     //
-    for (int i = 0; i < 16; i++) {
+    for (int i = 0; i < 8; i+=2) {
         vmm->pmpcfg[i].code = 0x3A0 + i;
         vmm->pmpcfg[i].mode =VM_MODE_M;
         vmm->pmpcfg[i].val  = 0;
