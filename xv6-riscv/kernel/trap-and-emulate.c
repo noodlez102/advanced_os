@@ -173,44 +173,44 @@ static uint64 get_tf_reg(struct trapframe *tf, int r)
     return 0;
 }
 
-static void set_tf_reg(struct trapframe *tf, int r, uint64 val)
-{
-    if (r == 0) return;
+// static void set_tf_reg(struct trapframe *tf, int r, uint64 val)
+// {
+//     if (r == 0) return;
 
-    switch (r) {
-    case 1:  tf->ra = val; break;
-    case 2:  tf->sp = val; break;
-    case 3:  tf->gp = val; break;
-    case 4:  tf->tp = val; break;
-    case 5:  tf->t0 = val; break;
-    case 6:  tf->t1 = val; break;
-    case 7:  tf->t2 = val; break;
-    case 8:  tf->s0 = val; break;
-    case 9:  tf->s1 = val; break;
-    case 10: tf->a0 = val; break;
-    case 11: tf->a1 = val; break;
-    case 12: tf->a2 = val; break;
-    case 13: tf->a3 = val; break;
-    case 14: tf->a4 = val; break;
-    case 15: tf->a5 = val; break;
-    case 16: tf->a6 = val; break;
-    case 17: tf->a7 = val; break;
-    case 18: tf->s2 = val; break;
-    case 19: tf->s3 = val; break;
-    case 20: tf->s4 = val; break;
-    case 21: tf->s5 = val; break;
-    case 22: tf->s6 = val; break;
-    case 23: tf->s7 = val; break;
-    case 24: tf->s8 = val; break;
-    case 25: tf->s9 = val; break;
-    case 26: tf->s10 = val; break;
-    case 27: tf->s11 = val; break;
-    case 28: tf->t3 = val; break;
-    case 29: tf->t4 = val; break;
-    case 30: tf->t5 = val; break;
-    case 31: tf->t6 = val; break;
-    }
-}
+//     switch (r) {
+//     case 1:  tf->ra = val; break;
+//     case 2:  tf->sp = val; break;
+//     case 3:  tf->gp = val; break;
+//     case 4:  tf->tp = val; break;
+//     case 5:  tf->t0 = val; break;
+//     case 6:  tf->t1 = val; break;
+//     case 7:  tf->t2 = val; break;
+//     case 8:  tf->s0 = val; break;
+//     case 9:  tf->s1 = val; break;
+//     case 10: tf->a0 = val; break;
+//     case 11: tf->a1 = val; break;
+//     case 12: tf->a2 = val; break;
+//     case 13: tf->a3 = val; break;
+//     case 14: tf->a4 = val; break;
+//     case 15: tf->a5 = val; break;
+//     case 16: tf->a6 = val; break;
+//     case 17: tf->a7 = val; break;
+//     case 18: tf->s2 = val; break;
+//     case 19: tf->s3 = val; break;
+//     case 20: tf->s4 = val; break;
+//     case 21: tf->s5 = val; break;
+//     case 22: tf->s6 = val; break;
+//     case 23: tf->s7 = val; break;
+//     case 24: tf->s8 = val; break;
+//     case 25: tf->s9 = val; break;
+//     case 26: tf->s10 = val; break;
+//     case 27: tf->s11 = val; break;
+//     case 28: tf->t3 = val; break;
+//     case 29: tf->t4 = val; break;
+//     case 30: tf->t5 = val; break;
+//     case 31: tf->t6 = val; break;
+//     }
+// }
 
 void trap_and_emulate(void) {
     struct proc *p = myproc();
