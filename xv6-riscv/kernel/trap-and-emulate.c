@@ -5,27 +5,10 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
-#include "stdbool.h"
-#include "stdlib.h"
 
-#define REG_COUNT 40
-
-// sret require registers
-#define SSTATUS 8
-#define SEPC 15
-
-// mret require registers
-#define MSTATUS 24
-#define MEPC 32
-#define STVEC 12
-
-#define SATP 19
-#define MACVENDORID 20
-
-// pmp registers
-#define PMPCFG0 38
-#define PMPADDR0 39
-
+#define VM_MODE_U 0   
+#define VM_MODE_S 1   
+#define VM_MODE_M 2   
 
 // Struct to keep VM registers (Sample; feel free to change.)
 struct vm_reg {
@@ -33,284 +16,512 @@ struct vm_reg {
     int     mode;
     uint64  val;
 };
-typedef struct vm_reg vm_reg;
 
 // Keep the virtual state of the VM's privileged registers
 struct vm_virtual_state {
-    // Register Array
-    vm_reg reg_array[REG_COUNT];
-    int priv_mode;
-    bool is_pmp;
-    pagetable_t vm_ptable;
+    // User trap setup
+    struct vm_reg ustatus;
+    struct vm_reg uie;
+    struct vm_reg utvec;
+    struct vm_reg uepc;
+
+
+    // User trap handling
+    struct vm_reg uscratch;
+    struct vm_reg ucause;
+    struct vm_reg utval;
+    struct vm_reg uip;
+
+    // Supervisor trap setup
+    struct vm_reg sstatus;
+    struct vm_reg sie;
+    struct vm_reg stvec;
+    struct vm_reg scounteren;
+    struct vm_reg sepc;
+
+    // Supervisor page table register
+    struct vm_reg satp;
+
+    // Machine information registers
+    struct vm_reg mvendorid;
+    struct vm_reg marchid;
+    struct vm_reg mimpid;
+    struct vm_reg mhartid;
+    struct vm_reg mconfigptr;
+
+    // Machine trap setup registers
+    struct vm_reg mstatus;
+    struct vm_reg misa;
+    struct vm_reg medeleg;
+    struct vm_reg mideleg;
+    struct vm_reg mie;
+    struct vm_reg mtvec;
+    struct vm_reg mcounteren;
+
+    // Machine trap handling registers
+    struct vm_reg mscratch;
+    struct vm_reg mepc;
+    struct vm_reg mcause;
+    struct vm_reg mtval;
+    struct vm_reg mip;
+    struct vm_reg mtinst; 
+    struct vm_reg mtval2;
+
+    //Machine PMP
+    struct vm_reg pmpaddr[64];
+    struct vm_reg pmpcfg[8];
+
+    uint64 current_exec_mode; 
 };
-typedef struct vm_virtual_state vm_virtual_state;
-pagetable_t host_ptable = NULL;
+struct vm_virtual_state *vmm;
+// In your ECALL, add the following for prints
+// struct proc* p = myproc();
+// printf("(EC at %p)\n", p->trapframe->epc);
 
-vm_virtual_state vm_state;
+static struct vm_reg* csr_register(uint32 csr_num) {
+    switch (csr_num) {
+    /* User CSRs */
+    case 0x000: return &vmm->ustatus;
+    case 0x004: return &vmm->uie;
+    case 0x005: return &vmm->utvec;
+    case 0x041: return &vmm->uepc;
 
-void uvmcopy_copmp(pagetable_t old, pagetable_t new, uint64 sz){
-  pte_t *pte;
-  uint64 pa, i;
-  uint flags;
- 
-  for(i = 0; i < sz; i += PGSIZE){
-    if((pte = walk(old, i, 0)) == 0)
-      panic("uvmcopy: pte should exist");
-    if((*pte & PTE_V) == 0)
-      panic("uvmcopy: page not present");
-    pa = PTE2PA(*pte);
-    flags = PTE_FLAGS(*pte);
-    mappages(new, i, PGSIZE, (uint64)pa, flags);
-  }
+    case 0x040: return &vmm->uscratch;
+    case 0x042: return &vmm->ucause;
+    case 0x043: return &vmm->utval;
+    case 0x044: return &vmm->uip;
 
-  for(i = 0x80000000; i < 0x80400000; i += PGSIZE){
-    if((pte = walk(old, i, 0)) == 0)
-      panic("uvmcopy: pte should exist");
-    if((*pte & PTE_V) == 0)
-      panic("uvmcopy: page not present");
-    pa = PTE2PA(*pte);
-    flags = PTE_FLAGS(*pte);
-    mappages(new, i, PGSIZE, (uint64)pa, flags);
+    /* Supervisor CSRs */
+    case 0x100: return &vmm->sstatus;
+    case 0x104: return &vmm->sie;
+    case 0x105: return &vmm->stvec;
+    case 0x106: return &vmm->scounteren;
+    case 0x141: return &vmm->sepc;
+    case 0x180: return &vmm->satp;
+
+    /* Machine info */
+    case 0xF11: return &vmm->mvendorid;
+    case 0xF12: return &vmm->marchid;
+    case 0xF13: return &vmm->mimpid;
+    case 0xF14: return &vmm->mhartid;
+    case 0xF15: return &vmm->mconfigptr;
+
+    /* Machine trap setup */
+    case 0x300: return &vmm->mstatus;
+    case 0x301: return &vmm->misa;
+    case 0x302: return &vmm->medeleg;
+    case 0x303: return &vmm->mideleg;
+    case 0x304: return &vmm->mie;
+    case 0x305: return &vmm->mtvec;
+    case 0x306: return &vmm->mcounteren;
+
+    /* Machine trap handling */
+    case 0x340: return &vmm->mscratch;
+    case 0x341: return &vmm->mepc;
+    case 0x342: return &vmm->mcause;
+    case 0x343: return &vmm->mtval;
+    case 0x344: return &vmm->mip;
+    case 0x34A: return &vmm->mtinst;
+    case 0x34B: return &vmm->mtval2;
+
+    /* PMP ranges */
+    default:
+        if (csr_num >= 0x3B0 && csr_num < 0x3B0 + 64)
+            return &vmm->pmpaddr[csr_num - 0x3B0];
+        if (csr_num >= 0x3A0 && csr_num < 0x3A0 + 8)
+            return &vmm->pmpcfg[csr_num - 0x3A0];
+        return NULL;
     }
 }
 
-void sret_manager(struct proc *p){
-    if(vm_state.priv_mode >= 1){
-        unsigned long sstatus = vm_state.reg_array[SSTATUS].val;
-        unsigned long spp_bit = (sstatus >> 8) & 0x1; // get SPP bit
-        sstatus &= ~(1UL << 8); // Clear the SPP bit
-
-        unsigned long spie_bit = (sstatus >> 5) & 0x1; // get the previous interrupt enable bit (spie)
-        sstatus |= spie_bit << 1; // set SIE bit to SPIE
-        sstatus &= ~(1UL << 5); // set SPIE bit to 1
-
-        // set the current privilege level (priv) to spp
-        if(spp_bit){
-            vm_state.priv_mode = 1;
-        }
-        else{
-            vm_state.priv_mode = 0;
-        }
-
-        vm_state.reg_array[SSTATUS].val = sstatus; // write sstatus register
-
-        p->trapframe->epc = vm_state.reg_array[SEPC].val; // set the program count to the value of sepc
+static uint64 get_tf_reg(struct trapframe *tf, int r)
+{
+    switch (r) {
+    case 0:  return 0;
+    case 1:  return tf->ra;
+    case 2:  return tf->sp;
+    case 3:  return tf->gp;
+    case 4:  return tf->tp;
+    case 5:  return tf->t0;
+    case 6:  return tf->t1;
+    case 7:  return tf->t2;
+    case 8:  return tf->s0;
+    case 9:  return tf->s1;
+    case 10: return tf->a0;
+    case 11: return tf->a1;
+    case 12: return tf->a2;
+    case 13: return tf->a3;
+    case 14: return tf->a4;
+    case 15: return tf->a5;
+    case 16: return tf->a6;
+    case 17: return tf->a7;
+    case 18: return tf->s2;
+    case 19: return tf->s3;
+    case 20: return tf->s4;
+    case 21: return tf->s5;
+    case 22: return tf->s6;
+    case 23: return tf->s7;
+    case 24: return tf->s8;
+    case 25: return tf->s9;
+    case 26: return tf->s10;
+    case 27: return tf->s11;
+    case 28: return tf->t3;
+    case 29: return tf->t4;
+    case 30: return tf->t5;
+    case 31: return tf->t6;
     }
-    else{
-        setkilled(p);
-        
-        trap_and_emulate_init();
-    }
+    return 0;
 }
 
-void mret_manager(struct proc *p){
-    if(vm_state.priv_mode >= 2){
-        unsigned long mstatus = vm_state.reg_array[MSTATUS].val;
+static void set_tf_reg(struct trapframe *tf, int r, uint64 val)
+{
+    if (r == 0) return;
 
-        unsigned long int mpp = (mstatus >> 11) & 0x1; // Extract the previous privilege level (mpp)
-        mstatus &= ~MSTATUS_MPP_MASK; // clear MPP bits
-
-        unsigned long int mpie = (mstatus >> 7) & 0x1; // Extract the previous interrupt enable bit (MPIE) from mstatus
-
-        mstatus |= mpie << 3; // set MIE bit to MPIE
-        mstatus &= (1 << 0x7); // set MPIE bit to 1
-        mstatus &= ~(1 << 0x17); // clear MPRV bit
-
-        
-        // set the current privilege level (priv) to mpp
-        if(mpp){
-            vm_state.priv_mode = 1;
-        }
-        else{
-            vm_state.priv_mode = 0;
-        }
-
-        vm_state.reg_array[MSTATUS].val = mstatus; // write mstatus register
-
-        p->trapframe->epc = vm_state.reg_array[MEPC].val; // set the program count to the value of mepc
-    }
-    else{
-        setkilled(p);
-        
-        trap_and_emulate_init();
-    }
-    if(vm_state.is_pmp){
-        vm_state.vm_ptable = proc_pagetable(p);
-        uvmcopy_copmp(p->pagetable, vm_state.vm_ptable, p->sz);
-        uvmunmap(vm_state.vm_ptable, 0x0000000080000000, 1, 0);
-        p->pagetable = vm_state.vm_ptable;
+    switch (r) {
+    case 1:  tf->ra = val; break;
+    case 2:  tf->sp = val; break;
+    case 3:  tf->gp = val; break;
+    case 4:  tf->tp = val; break;
+    case 5:  tf->t0 = val; break;
+    case 6:  tf->t1 = val; break;
+    case 7:  tf->t2 = val; break;
+    case 8:  tf->s0 = val; break;
+    case 9:  tf->s1 = val; break;
+    case 10: tf->a0 = val; break;
+    case 11: tf->a1 = val; break;
+    case 12: tf->a2 = val; break;
+    case 13: tf->a3 = val; break;
+    case 14: tf->a4 = val; break;
+    case 15: tf->a5 = val; break;
+    case 16: tf->a6 = val; break;
+    case 17: tf->a7 = val; break;
+    case 18: tf->s2 = val; break;
+    case 19: tf->s3 = val; break;
+    case 20: tf->s4 = val; break;
+    case 21: tf->s5 = val; break;
+    case 22: tf->s6 = val; break;
+    case 23: tf->s7 = val; break;
+    case 24: tf->s8 = val; break;
+    case 25: tf->s9 = val; break;
+    case 26: tf->s10 = val; break;
+    case 27: tf->s11 = val; break;
+    case 28: tf->t3 = val; break;
+    case 29: tf->t4 = val; break;
+    case 30: tf->t5 = val; break;
+    case 31: tf->t6 = val; break;
     }
 }
-
-int find_csr(unsigned int uimm){
-    for (int i = 0; i < REG_COUNT; i++) {
-        if (vm_state.reg_array[i].code == uimm) {
-            return i;
-        }
-    }
-    return -1;
-}
-
-void csrr_manager(struct proc *p, unsigned int rs1, unsigned int rd, unsigned int uimm){
-    int csr_idx = find_csr(uimm);
-    if(csr_idx == -1) return;
-
-    if(vm_state.priv_mode >= vm_state.reg_array[csr_idx].mode){
-        uint32 csr_value = vm_state.reg_array[csr_idx].val;
-        uint64* rd_reg_ptr = &(p->trapframe->ra) + rd - 1;
-        *rd_reg_ptr = csr_value;    
-    }
-    else{
-        setkilled(p);
-        
-        trap_and_emulate_init();
-    }
-
-    p->trapframe->epc += 4;
-}
-
-
-void csrw_manager(struct proc *p, unsigned int rs1, unsigned int rd, unsigned int uimm){
-    int csr_idx = find_csr(uimm);
-    if(csr_idx == -1) return;
-
-    if(vm_state.priv_mode >= vm_state.reg_array[csr_idx].mode){
-        uint64* rs1_ptr= &(p->trapframe->ra) + rs1 - 1;
-
-        if((csr_idx == MACVENDORID) && (*rs1_ptr == 0x0)){ // invalid write operation for machineVendorId register
-            setkilled(p);
-            
-            trap_and_emulate_init();
-        }
-
-        //If writing to PMP registers, enable pmp
-        if((csr_idx == PMPADDR0) || (csr_idx == PMPCFG0)){
-            vm_state.is_pmp = true;
-        }
-
-        vm_state.reg_array[csr_idx].val = *rs1_ptr;
-    }else{
-        setkilled(p);
-        
-        trap_and_emulate_init();
-    }
-    p->trapframe->epc += 4;
-}
-
-void ecall_manager(struct proc *p){
-    vm_state.reg_array[SEPC].val = p->trapframe->epc;
-    p->trapframe->epc = vm_state.reg_array[STVEC].val;
-    vm_state.priv_mode = 1;
-}
-
 
 void trap_and_emulate(void) {
-    /* Comes here when a VM tries to execute a supervisor instruction. */
     struct proc *p = myproc();
 
-    uint64 virtual_addr = r_sepc();
-    /* Retrieve all required values from the instruction */
-    uint64 addr     = walkaddr(p->pagetable, virtual_addr) | (virtual_addr & 0xFFF);
-    uint32 instruction = *((uint32*)(addr));
-    uint32 op       = instruction & 0x7F;
-    uint32 rd       = (instruction >> 7) & 0x1F;
-    uint32 funct3   = (instruction >> 12) & 0x7;
-    uint32 rs1      = (instruction >> 15) & 0x1F;
-    uint32 uimm     = (instruction >> 20) & 0xFFF;
-
-    if((funct3 == 0x0) && (uimm == 0)){
-        printf("(EC at %p)\n", p->trapframe->epc);
-        ecall_manager(p);
+    uint32 instr = 0;
+    if(copyin(p->pagetable, (char *)&instr, p->trapframe->epc, sizeof(instr)) < 0){
+        printf("Cannot fetch instruction at %p\n", p->trapframe->epc);
     }
-    else{
-        printf("(PI at %p) op = %x, rd = %x, funct3 = %x, rs1 = %x, uimm = %x\n", 
-        virtual_addr, op, rd, funct3, rs1, uimm);
 
-        if((funct3 == 0x0) && (uimm == 0x102)){
-            sret_manager(p);
-        } 
-        else if((funct3 == 0x0) && (uimm == 0x302)){
-            mret_manager(p);
+    /* Comes here when a VM tries to execute a supervisor instruction. */
+    //printf("entered trap_and_emulate\n");
+    /* Retrieve all required values from the instruction */
+    uint64 addr     = p->trapframe->epc;
+    uint32 op       = instr & 0x7f;
+    uint32 rd     = (instr >> 7) & 0x1f;
+    uint32 funct3 = (instr >> 12) & 0x7;
+    uint32 rs1    = (instr >> 15) & 0x1f;
+    uint32 uimm   = (instr >> 20) & 0xfff;
+
+
+    /* Print the statement */
+    printf("(PI at %p) op = %x, rd = %x, funct3 = %x, rs1 = %x, uimm = %x\n", 
+                addr, op, rd, funct3, rs1, uimm);
+
+    //ecall for prints
+    if(funct3 == 0 && uimm == 0){
+        printf("(EC at %p)\n", p->trapframe->epc);
+        if(vmm->current_exec_mode == VM_MODE_U)
+        {
+            vmm->current_exec_mode = VM_MODE_S;
+            vmm->sepc.val = p->trapframe->epc;
+            p->trapframe->epc = vmm->stvec.val;
+        }else if(vmm->current_exec_mode == VM_MODE_S)
+        {
+            vmm->current_exec_mode = VM_MODE_M;
+            vmm->mepc.val = p->trapframe->epc;
+            p->trapframe->epc = vmm->mtvec.val;
         }
-        else if(funct3 == 0x1){
-            csrw_manager(p, rs1, rd, uimm);
-        }
-        else if(funct3 == 0x2){
-            csrr_manager(p, rs1, rd, uimm);
+    }//SRET
+    else if (funct3 == 0 && uimm == 0x102) {
+        //printf("entered sret handler\n");
+        uint64 value_sstatus = vmm->sstatus.val;
+        uint64 spp = (value_sstatus >> 8) & 0x1;
+        if(vmm->current_exec_mode != 1){
+            printf("Called sret not in S mode\n");
+            kill(p->pid);
         }
         else{
-            printf("Instruction is not correct.\n");
-            setkilled(p);
-            host_ptable = NULL;
-            trap_and_emulate_init();
+            if (spp == 1) {
+                vmm->current_exec_mode = VM_MODE_S;
+            } 
+            else {
+                if (vmm->current_exec_mode == VM_MODE_S) {
+                    vmm->current_exec_mode = VM_MODE_U;
+                    p->trapframe->epc = vmm->sepc.val;
+                } 
+                else{
+                    kill(p->pid);
+                }
+            }
         }
+    }//MRET
+    else if (funct3 == 0 && uimm == 0x302) {
+        //printf("entered mret handler\n");
+        uint64 value_mstatus = vmm->mstatus.val;
+        uint64 mpp = (value_mstatus >> 11) & 0x3;
+        if (mpp == 3) {
+            vmm->current_exec_mode = VM_MODE_M;
+            p->trapframe->epc = vmm->mepc.val;
+        } else if (mpp == 2) {
+            kill(p->pid);
+        } else if (mpp == 1) {
+            vmm->current_exec_mode = VM_MODE_S;
+            p->trapframe->epc = vmm->mepc.val;
+        } else if (mpp == 0) {
+            vmm->current_exec_mode = VM_MODE_U;
+            p->trapframe->epc = vmm->mepc.val;
+        }
+    } //csrwrite
+    else if (funct3 == 0x1) {
+        //printf("entered csrwrite handler\n");
+        struct vm_reg* found_reg = csr_register(uimm);
+        if (found_reg != NULL) {
+            int source_val = get_tf_reg(p->trapframe, rs1);
+            if(vmm->current_exec_mode >=found_reg->mode){
+                found_reg->val=source_val;
+            }else{
+                kill(p->pid);
+            }
+        } else {
+            kill(p->pid);
+        }
+        p->trapframe->epc += 4;
+    }//csrread
+    else if (funct3 == 0x2) {
+        //printf("entered csrread handler\n");
+        struct vm_reg* found_reg = csr_register(uimm);
+        if (found_reg == NULL) {
+            printf("Incorrect CSR code %x for execution mode as : %d\n", uimm, vmm->current_exec_mode);
+            kill(p->pid);
+        } else {
+            //printf("current mode execution is: %d and the register's mode I am lloking for is: %d\n",vmm->current_exec_mode,found_reg->mode);
+            if(vmm->current_exec_mode >=found_reg->mode){
+                //printf("right before set trapframe\n");
+                set_tf_reg(p->trapframe, rd, found_reg->val);
+            }
+        }
+        p->trapframe->epc += 4;
+    }else {
+        kill(p->pid);
     }
 }
 
 void trap_and_emulate_init(void) {
     /* Create and initialize all state for the VM */
-    vm_state.is_pmp = false;
+    vmm = (struct vm_virtual_state*)kalloc();
+    if(vmm == NULL){
+        panic("Could not allocate memory");
+    }
 
-    // User trap init
-    vm_state.reg_array[0] = (vm_reg){.code = 0x000, .mode = 0, .val = 0};
-    vm_state.reg_array[1] = (vm_reg){.code = 0x004, .mode = 0, .val = 0};
-    vm_state.reg_array[2] = (vm_reg){.code = 0x005, .mode = 0, .val = 0};
+    memset(vmm, 0, sizeof(struct vm_virtual_state));
 
-    // User trap handling init
-    vm_state.reg_array[3] = (vm_reg){.code = 0x040, .mode = 0, .val = 0};
-    vm_state.reg_array[4] = (vm_reg){.code = 0x041, .mode = 0, .val = 0};
-    vm_state.reg_array[5] = (vm_reg){.code = 0x042, .mode = 0, .val = 0};
-    vm_state.reg_array[6] = (vm_reg){.code = 0x043, .mode = 0, .val = 0};
-    vm_state.reg_array[7] = (vm_reg){.code = 0x044, .mode = 0, .val = 0};
+    //
+    // -------------------------------
+    // User Trap Setup CSRs
+    // -------------------------------
+    //
+    vmm->ustatus.code = 0x000;
+    vmm->ustatus.mode =VM_MODE_U;
+    vmm->ustatus.val  = 0;
 
-    // Supervisor trap setup init
-    vm_state.reg_array[8] = (vm_reg){.code = 0x100, .mode = 1, .val = 0};
-    vm_state.reg_array[9] = (vm_reg){.code = 0x102, .mode = 1, .val = 0};
-    vm_state.reg_array[10] = (vm_reg){.code = 0x103, .mode = 1, .val = 0};
-    vm_state.reg_array[11] = (vm_reg){.code = 0x104, .mode = 1, .val = 0};
-    vm_state.reg_array[12] = (vm_reg){.code = 0x105, .mode = 1, .val = 0};
-    vm_state.reg_array[13] = (vm_reg){.code = 0x106, .mode = 1, .val = 0};
+    vmm->uie.code = 0x004;
+    vmm->uie.mode =VM_MODE_U;
+    vmm->uie.val  = 0;
 
+    vmm->utvec.code = 0x005;
+    vmm->utvec.mode =VM_MODE_U;
+    vmm->utvec.val  = 0;
 
-    // Supervisor trap handling init
-    vm_state.reg_array[14] = (vm_reg){.code = 0x140, .mode = 1, .val = 0};
-    vm_state.reg_array[15] = (vm_reg){.code = 0x141, .mode = 1, .val = 0};
-    vm_state.reg_array[16] = (vm_reg){.code = 0x142, .mode = 1, .val = 0};
-    vm_state.reg_array[17] = (vm_reg){.code = 0x143, .mode = 1, .val = 0};
-    vm_state.reg_array[18] = (vm_reg){.code = 0x144, .mode = 1, .val = 0};
-
-    // Supervisor page table register
-    vm_state.reg_array[19] = (vm_reg){.code = 0x180, .mode = 1, .val = 0};
+    vmm->uepc.code = 0x041;
+    vmm->uepc.mode =VM_MODE_U;
+    vmm->uepc.val  = 0;
 
 
-    // Machine information registers init
-    vm_state.reg_array[20] = (vm_reg){.code = 0xf11, .mode = 1, .val = 0x637365353336}; // hexa code for CSE536
-    vm_state.reg_array[21] = (vm_reg){.code = 0xf12, .mode = 2, .val = 0};
-    vm_state.reg_array[22] = (vm_reg){.code = 0xf13, .mode = 2, .val = 0};
-    vm_state.reg_array[23] = (vm_reg){.code = 0xf14, .mode = 2, .val = 0};
+    //
+    // -------------------------------
+    // User Trap Handling CSRs
+    // -------------------------------
+    //
+    vmm->uscratch.code = 0x040;
+    vmm->uscratch.mode =VM_MODE_U;
+    vmm->uscratch.val  = 0;
 
-    // Machine trap setup registers init
-    vm_state.reg_array[24] = (vm_reg){.code = 0x300, .mode = 2, .val = 0};
-    vm_state.reg_array[25] = (vm_reg){.code = 0x301, .mode = 2, .val = 0};
-    vm_state.reg_array[26] = (vm_reg){.code = 0x302, .mode = 2, .val = 0};
-    vm_state.reg_array[27] = (vm_reg){.code = 0x303, .mode = 2, .val = 0};
-    vm_state.reg_array[28] = (vm_reg){.code = 0x304, .mode = 2, .val = 0};
-    vm_state.reg_array[29] = (vm_reg){.code = 0x305, .mode = 2, .val = 0};
-    vm_state.reg_array[30] = (vm_reg){.code = 0x306, .mode = 2, .val = 0};
+    vmm->ucause.code = 0x042;
+    vmm->ucause.mode =VM_MODE_U;
+    vmm->ucause.val  = 0;
 
-    // Machine trap handling registers init
-    vm_state.reg_array[31] = (vm_reg){.code = 0x340, .mode = 2, .val = 0};
-    vm_state.reg_array[32] = (vm_reg){.code = 0x341, .mode = 2, .val = 0};
-    vm_state.reg_array[33] = (vm_reg){.code = 0x342, .mode = 2, .val = 0};
-    vm_state.reg_array[34] = (vm_reg){.code = 0x343, .mode = 2, .val = 0};
-    vm_state.reg_array[35] = (vm_reg){.code = 0x344, .mode = 2, .val = 0};
-    vm_state.reg_array[36] = (vm_reg){.code = 0x34a, .mode = 2, .val = 0};
-    vm_state.reg_array[37] = (vm_reg){.code = 0x34b, .mode = 2, .val = 0};
-    
-    // pmp register init
-    vm_state.reg_array[38] = (vm_reg){.code = 0x3a0, .mode = 2, .val = 0};
-    vm_state.reg_array[39] = (vm_reg){.code = 0x3b0, .mode = 2, .val = 0};
+    vmm->utval.code = 0x043;   
+    vmm->utval.mode =VM_MODE_U;
+    vmm->utval.val  = 0;
 
-    vm_state.priv_mode = 2;
-    vm_state.vm_ptable = NULL;
+    vmm->uip.code = 0x044;
+    vmm->uip.mode =VM_MODE_U;
+    vmm->uip.val  = 0;
+
+
+    //
+    // -------------------------------
+    // Supervisor Trap Setup
+    // -------------------------------
+    //
+    vmm->sstatus.code = 0x100;
+    vmm->sstatus.mode = VM_MODE_S;
+    vmm->sstatus.val  = 0;
+
+    vmm->sie.code = 0x104;
+    vmm->sie.mode = VM_MODE_S;
+    vmm->sie.val  = 0;
+
+    vmm->stvec.code = 0x105;
+    vmm->stvec.mode = VM_MODE_S;
+    vmm->stvec.val  = 0;
+
+    vmm->scounteren.code = 0x106;
+    vmm->scounteren.mode = VM_MODE_S;
+    vmm->scounteren.val  = 0;
+
+    vmm->sepc.code = 0x141;
+    vmm->sepc.mode = VM_MODE_S;
+    vmm->sepc.val  = 0;
+
+    //
+    // -------------------------------
+    // Supervisor Page Table Register
+    // -------------------------------
+    //
+    vmm->satp.code = 0x180;
+    vmm->satp.mode = VM_MODE_S;
+    vmm->satp.val  = 0;
+
+
+    //
+    // -------------------------------
+    // Machine Information Registers
+    // -------------------------------
+    //
+    vmm->mvendorid.code = 0xF11;
+    vmm->mvendorid.mode =VM_MODE_M;
+    vmm->mvendorid.val  = 0x637365353336;
+
+    vmm->marchid.code = 0xF12;
+    vmm->marchid.mode =VM_MODE_M;
+    vmm->marchid.val  = 0;
+
+    vmm->mimpid.code = 0xF13;
+    vmm->mimpid.mode =VM_MODE_M;
+    vmm->mimpid.val  = 0;
+
+    vmm->mhartid.code = 0xF14;
+    vmm->mhartid.mode =VM_MODE_M;
+    vmm->mhartid.val  = 0;
+
+    vmm->mconfigptr.code = 0xF15;
+    vmm->mconfigptr.mode =VM_MODE_M;
+    vmm->mconfigptr.val  = 0;
+
+
+    //
+    // -------------------------------
+    // Machine Trap Setup Registers
+    // -------------------------------
+    //
+    vmm->mstatus.code = 0x300;
+    vmm->mstatus.mode =VM_MODE_M;
+    vmm->mstatus.val  = 0;
+
+    vmm->misa.code = 0x301;
+    vmm->misa.mode =VM_MODE_M;
+    vmm->misa.val  = 0;
+
+    vmm->medeleg.code = 0x302;
+    vmm->medeleg.mode =VM_MODE_M;
+    vmm->medeleg.val  = 0;
+
+    vmm->mideleg.code = 0x303;
+    vmm->mideleg.mode =VM_MODE_M;
+    vmm->mideleg.val  = 0;
+
+    vmm->mie.code = 0x304;
+    vmm->mie.mode =VM_MODE_M;
+    vmm->mie.val  = 0;
+
+    vmm->mtvec.code = 0x305;
+    vmm->mtvec.mode =VM_MODE_M;
+    vmm->mtvec.val  = 0;
+
+    vmm->mcounteren.code = 0x306;
+    vmm->mcounteren.mode =VM_MODE_M;
+    vmm->mcounteren.val  = 0;
+
+
+    //
+    // -------------------------------
+    // Machine Trap Handling Registers
+    // -------------------------------
+    //
+    vmm->mscratch.code = 0x340;
+    vmm->mscratch.mode =VM_MODE_M;
+    vmm->mscratch.val  = 0;
+
+    vmm->mepc.code = 0x341;
+    vmm->mepc.mode =VM_MODE_M;
+    vmm->mepc.val  = 0;
+
+    vmm->mcause.code = 0x342;
+    vmm->mcause.mode =VM_MODE_M;
+    vmm->mcause.val  = 0;
+
+    vmm->mtval.code = 0x343;
+    vmm->mtval.mode =VM_MODE_M;
+    vmm->mtval.val  = 0;
+
+    vmm->mip.code = 0x344;
+    vmm->mip.mode =VM_MODE_M;
+    vmm->mip.val  = 0;
+
+    vmm->mtinst.code = 0x34A;
+    vmm->mtinst.mode =VM_MODE_M;
+    vmm->mtinst.val  = 0;
+
+    vmm->mtval2.code = 0x34B;
+    vmm->mtval2.mode =VM_MODE_M;
+    vmm->mtval2.val  = 0;
+
+
+    //
+    // -------------------------------
+    // PMP Registers
+    // -------------------------------
+    //
+    for (int i = 0; i < 8; i+=2) {
+        vmm->pmpcfg[i].code = 0x3A0 + i;
+        vmm->pmpcfg[i].mode =VM_MODE_M;
+        vmm->pmpcfg[i].val  = 0;
+    }
+
+    for (int i = 0; i < 64; i++) {
+        vmm->pmpaddr[i].code = 0x3B0 + i;
+        vmm->pmpaddr[i].mode =VM_MODE_M;
+        vmm->pmpaddr[i].val  = 0;
+    }
+
+    vmm->current_exec_mode =VM_MODE_M;
 }
