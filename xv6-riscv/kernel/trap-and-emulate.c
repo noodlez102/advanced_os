@@ -256,7 +256,7 @@ void trap_and_emulate(void) {
         uint64 value_sstatus = vmm->sstatus.val;
         uint64 spp = (value_sstatus >> 8) & 0x1;
         if(vmm->current_exec_mode != 1){
-            printf("Called sret not in S mode");
+            printf("Called sret not in S mode\n");
             kill(p->pid);
         }
         else{
