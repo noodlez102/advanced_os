@@ -8,7 +8,7 @@
 
 #define VM_MODE_U 0   
 #define VM_MODE_S 1   
-#define VM_MODE_M 3   
+#define VM_MODE_M 2   
 
 // Struct to keep VM registers (Sample; feel free to change.)
 struct vm_reg {
