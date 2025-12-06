@@ -524,5 +524,5 @@ void trap_and_emulate_init(void) {
         vmm->pmpaddr[i].val  = 0;
     }
 
-    vmm->current_exec_mode =VM_MODE_U;
+    vmm->current_exec_mode =VM_MODE_M;
 }
