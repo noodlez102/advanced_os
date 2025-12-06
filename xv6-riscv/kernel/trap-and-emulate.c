@@ -222,15 +222,15 @@ void uvmcopy_copmp(pagetable_t old, pagetable_t new, uint64 sz){
   uint64 pa, i;
   uint flags;
  
-  for(i = 0; i < sz; i += PGSIZE){
-    if((pte = walk(old, i, 0)) == 0)
-      panic("uvmcopy: pte should exist");
-    if((*pte & PTE_V) == 0)
-      panic("uvmcopy: page not present");
-    pa = PTE2PA(*pte);
-    flags = PTE_FLAGS(*pte);
-    mappages(new, i, PGSIZE, (uint64)pa, flags);
-  }
+//   for(i = 0; i < sz; i += PGSIZE){
+//     if((pte = walk(old, i, 0)) == 0)
+//       panic("uvmcopy: pte should exist");
+//     if((*pte & PTE_V) == 0)
+//       panic("uvmcopy: page not present");
+//     pa = PTE2PA(*pte);
+//     flags = PTE_FLAGS(*pte);
+//     mappages(new, i, PGSIZE, (uint64)pa, flags);
+//   }
 
   for(i = 0x80000000; i < 0x80400000; i += PGSIZE){
     if((pte = walk(old, i, 0)) == 0)
@@ -327,7 +327,7 @@ void trap_and_emulate(void) {
             vmm->pagetable = proc_pagetable(p);
             uvmcopy_copmp(p->pagetable, vmm->pagetable, p->sz);
             uvmunmap(vmm->pagetable, 0x0000000080000000, 1, 0);
-            p->pagetable = vmm->backuppagetable;
+            p->pagetable = vmm->pagetable;
         }
     } //csrwrite
     else if (funct3 == 0x1) {
