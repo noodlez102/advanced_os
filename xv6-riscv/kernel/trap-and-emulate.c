@@ -252,8 +252,9 @@ void pmp_apply_rules(pagetable_t pt) {
 
 void do_pmp_switch(struct proc *p){
     // Create PMP table if not made yet
-    if(vmm->pmpcfg == 0){
-        vmm->pagetable = pmp_copy_pagetable(p);
+    if(vmm->pmp_config == 0){
+        vmm->pagetable = proc_pagetable(p);
+        uvmcopy_copmp(p->pagetable, vmm->pagetable, p->sz);
         pmp_apply_rules(vmm->pagetable);
     }
 
