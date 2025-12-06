@@ -252,6 +252,7 @@ void trap_and_emulate(void) {
         }
     }//SRET
     else if (funct3 == 0 && uimm == 0x102) {
+        printf("entered sret handler\n");
         uint64 value_sstatus = vmm->sstatus.val;
         uint64 spp = (value_sstatus >> 8) & 0x1;
         if(vmm->current_exec_mode != 1){
@@ -274,6 +275,7 @@ void trap_and_emulate(void) {
         }
     }//MRET
     else if (funct3 == 0 && uimm == 0x302) {
+        printf("entered mret handler\n");
         uint64 value_mstatus = vmm->mstatus.val;
         uint64 mpp = (value_mstatus >> 11) & 0x3;
         if (mpp == 3) {
@@ -290,6 +292,7 @@ void trap_and_emulate(void) {
         }
     } //csrwrite
     else if (funct3 == 0x1) {
+        printf("entered csrwrite handler\n");
         struct vm_reg* found_reg = csr_register(uimm);
         if (found_reg != NULL) {
             int source_val = get_tf_reg(p->trapframe, rs1);
@@ -304,6 +307,7 @@ void trap_and_emulate(void) {
         p->trapframe->epc += 4;
     }//csrread
     else if (funct3 == 0x2) {
+        printf("entered csrread handler\n");
         struct vm_reg* found_reg = csr_register(uimm);
         if (found_reg == NULL) {
             printf("Incorrect CSR code %x for execution mode as : %d\n", uimm, vmm->current_exec_mode);
@@ -314,7 +318,9 @@ void trap_and_emulate(void) {
             }
         }
         p->trapframe->epc += 4;
-    } 
+    }else {
+        kill(p->pid);
+    }
 }
 
 void trap_and_emulate_init(void) {
