@@ -312,7 +312,7 @@ void trap_and_emulate(void) {
         //printf("entered csrwrite handler\n");
         struct vm_reg* found_reg = csr_register(uimm);
         if (found_reg != NULL) { //if writing to 
-            int source_val = get_tf_reg(p->trapframe, rs1);//could be rs1-1
+            int source_val = get_tf_reg(p->trapframe, rs1-1);//could be rs1-1
             if(found_reg->code==0xF11 && source_val==0x0){//graceful vm shutdown
                 kill(p->pid);
             }
@@ -336,7 +336,7 @@ void trap_and_emulate(void) {
             //printf("current mode execution is: %d and the register's mode I am lloking for is: %d\n",vmm->current_exec_mode,found_reg->mode);
             if(vmm->current_exec_mode >=found_reg->mode){
                 //printf("right before set trapframe\n");
-                set_tf_reg(p->trapframe, rd, found_reg->val);
+                set_tf_reg(p->trapframe, rd-1, found_reg->val);
             }
         }
         p->trapframe->epc += 4;
