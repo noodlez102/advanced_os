@@ -344,7 +344,7 @@ void trap_and_emulate(void) {
         if(vmm->pmp_config==1){
             vmm->backuppagetable=p->pagetable;
             do_pmp_switch(p);
-            p->pagetable=vmm->pagetable;
+            p->pagetable=vmm->backuppagetable;
         }
     } //csrwrite
     else if (funct3 == 0x1) {
