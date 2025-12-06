@@ -73,7 +73,14 @@ usertrap(void)
       syscall();
     }
 
-  } else if((which_dev = devintr()) != 0){
+  } else if (r_scause() == 13 || r_scause() == 15) {  // Load/Store page fault
+    uint64 faulting_addr = r_stval();
+      if(is_pmp_configured()) {
+        printf("Page Fault Occured. Probably due to PMP Violation\n");
+        printf("Accessing Address: %p\n", faulting_addr);
+    }
+    kill(p->pid);
+  }else if((which_dev = devintr()) != 0){
     // ok
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
