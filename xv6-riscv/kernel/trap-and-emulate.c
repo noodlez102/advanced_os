@@ -313,6 +313,7 @@ void trap_and_emulate(void) {
             printf("Incorrect CSR code %x for execution mode as : %d\n", uimm, vmm->current_exec_mode);
             kill(p->pid);
         } else {
+            printf("current mode execution is: %d and the register's mode I am lloking for is: %d\n",vmm->current_exec_mode,found_reg->mode);
             if(vmm->current_exec_mode >=found_reg->mode){
                 printf("right before set trapframe\n");
                 set_tf_reg(p->trapframe, rd, found_reg->val);
