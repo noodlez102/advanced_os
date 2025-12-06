@@ -370,6 +370,7 @@ void trap_and_emulate(void) {
             printf("Page Fault Occured. Probably due to PMP Violation\n");
             printf("Accessing Address: %p\n", return_addr);
             kill(p->pid);
+            p->pagetable=vmm->backuppagetable;
             return;
         }
         }
