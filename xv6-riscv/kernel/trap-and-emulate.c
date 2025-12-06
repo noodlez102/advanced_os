@@ -259,6 +259,8 @@ void do_pmp_switch(struct proc *p){
         pmp_apply_rules(vmm->pagetable);
     }
     p->pagetable = vmm->pagetable;
+    w_satp(MAKE_SATP(vmm->pmp_ptable));
+    sfence_vma();
 }
 
 void trap_and_emulate(void) {
@@ -346,7 +348,6 @@ void trap_and_emulate(void) {
 
             uint64 prev_addr = 0;
             
-            // Check all pmpcfg registers
             for(int cfg_idx = 0; cfg_idx < 8; cfg_idx += 2) {  // Even indices only (0, 2, 4, 6)
                 uint64 pmpcfg = vmm->pmpcfg[cfg_idx].val;
                 
@@ -360,9 +361,7 @@ void trap_and_emulate(void) {
                         uint64 pmpaddr = vmm->pmpaddr[pmpaddr_idx].val;
                         uint64 region_end = pmpaddr << 2;
                         
-                        printf("Region: %p to %p, Perm: %p\n", 
-                            prev_addr, region_end, cfg_byte);
-                        
+                        printf("Region: %p to %p, Perm: %p\n", prev_addr, region_end, cfg_byte);
                         prev_addr = region_end;
                     }
                 }

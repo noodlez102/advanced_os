@@ -53,7 +53,7 @@ usertrap(void)
   if (r_scause() == 13 || r_scause() == 15) {  // Load/Store page fault
     uint64 faulting_addr = r_stval();
     printf("entered before pmp config\n");
-      if(is_pmp_configured()) {
+    if(is_pmp_configured()) {
         printf("Page Fault Occured. Probably due to PMP Violation\n");
         printf("Accessing Address: %p\n", faulting_addr);
     }
