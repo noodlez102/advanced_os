@@ -293,18 +293,14 @@ void trap_and_emulate(void) {
             mstatus &= (1 << 0x7); // set MPIE bit to 1
             mstatus &= ~(1 << 0x17); // clear MPRV bit
 
-            
-            // set the current privilege level (priv) to mpp
-            if(mpp){
+                        if(mpp){
                 vmm->current_exec_mode = VM_MODE_S;
             }
             else{
                 vmm->current_exec_mode = VM_MODE_U;
             }
-
-            vmm->mstatus.val = mstatus; // write mstatus register
-
-            p->trapframe->epc = vmm->mepc.val; // set the program count to the value of mepc
+            vmm->mstatus.val = mstatus; 
+            p->trapframe->epc = vmm->mepc.val; 
         }
         else{
             setkilled(p);
@@ -315,8 +311,11 @@ void trap_and_emulate(void) {
     else if (funct3 == 0x1) {
         //printf("entered csrwrite handler\n");
         struct vm_reg* found_reg = csr_register(uimm);
-        if (found_reg != NULL) {
-            int source_val = get_tf_reg(p->trapframe, rs1);
+        if (found_reg != NULL) { //if writing to 
+            int source_val = get_tf_reg(p->trapframe, rs1);//could be rs1-1
+            if(found_reg->code==0xF11 && source_val==0x0){//graceful vm shutdown
+                kill(p->pid);
+            }
             if(vmm->current_exec_mode >=found_reg->mode){
                 found_reg->val=source_val;
             }else{
