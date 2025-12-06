@@ -50,7 +50,14 @@ usertrap(void)
   // save user program counter.
   p->trapframe->epc = r_sepc();
 
-  
+  if (r_scause() == 13 || r_scause() == 15) {  // Load/Store page fault
+    uint64 faulting_addr = r_stval();
+      if(is_pmp_configured()) {
+        printf("Page Fault Occured. Probably due to PMP Violation\n");
+        printf("Accessing Address: %p\n", faulting_addr);
+    }
+    kill(p->pid);
+  }
   
   if (p->proc_te_vm == 1 && (r_scause() == 2 || r_scause() == 1))
   {
@@ -73,13 +80,6 @@ usertrap(void)
       syscall();
     }
 
-  } else if (r_scause() == 13 || r_scause() == 15) {  // Load/Store page fault
-    uint64 faulting_addr = r_stval();
-      if(is_pmp_configured()) {
-        printf("Page Fault Occured. Probably due to PMP Violation\n");
-        printf("Accessing Address: %p\n", faulting_addr);
-    }
-    kill(p->pid);
   }else if((which_dev = devintr()) != 0){
     // ok
   } else {
