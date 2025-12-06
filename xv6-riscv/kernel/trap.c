@@ -54,14 +54,13 @@ usertrap(void)
   
   if (p->proc_te_vm == 1 && (r_scause() == 2))
   {
-
     trap_and_emulate();
-    printf("exited trap_and _emulate\n");
+    printf("exited trap_and_emulate\n");
     if(p->proc_te_vm == 1 && r_scause() == 15){
         kill(p->pid);
         printf("Killed from trap.c");
     }
-      
+  
   }else if(r_scause() == 8){
     // system call
     if(killed(p))

@@ -33,7 +33,7 @@ exec(char *path, char **argv)
 
   if(strncmp(path, "vm-", 3)==0)
   {
-    printf("noticied that in vm\n");
+    //printf("noticied that in vm\n");
     p->proc_te_vm = 1;
   }
 
