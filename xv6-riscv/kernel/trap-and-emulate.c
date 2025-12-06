@@ -340,25 +340,32 @@ void trap_and_emulate(void) {
         if(vmm->pmp_config==1){
             vmm->backuppagetable=p->pagetable;
             do_pmp_switch(p);
-            uint64 pmpaddr0 = vmm->pmpaddr[0].val;
-            uint64 pmpcfg0 = vmm->pmpcfg[0].val;
             
-            // Calculate regions from PMP configuration
-            // Region 1: 0x0 to pmpaddr0 << 2
-            uint64 region1_end = pmpaddr0 << 2;
-            uint64 region1_perm = pmpcfg0 & 0xFF;  // First byte of pmpcfg0
+            uint64 prev_addr = 0;
             
-            printf("Region: 0x%016lx to 0x%016lx, Perm: 0x%016lx\n", 
-                0UL, region1_end, region1_perm);
-            
-            // Region 2: pmpaddr0 << 2 to end of address space (or next region)
-            // For simplicity, assuming it goes to some upper bound
-            uint64 region2_start = region1_end;
-            uint64 region2_end = 0x81000000;  // Adjust based on your setup
-            uint64 region2_perm = (pmpcfg0 >> 8) & 0xFF;  // Second byte
-            
-            printf("Region: %p to %p, Perm: %p\n", 
-                region2_start, region2_end, region2_perm);
+            // Check all pmpcfg registers
+            for(int cfg_idx = 0; cfg_idx < 8; cfg_idx += 2) {  // Even indices only (0, 2, 4, 6)
+                uint64 pmpcfg = vmm->pmpcfg[cfg_idx].val;
+                
+                // Each pmpcfg has 8 entries (8 bytes)
+                for(int entry = 0; entry < 8; entry++) {
+                    int pmpaddr_idx = (cfg_idx / 2) * 8 + entry;
+                    if(pmpaddr_idx >= 64) break;
+                    
+                    uint64 cfg_byte = (pmpcfg >> (entry * 8)) & 0xFF;
+                    
+                    // Check if configured (non-zero)
+                    if(cfg_byte != 0) {
+                        uint64 pmpaddr = vmm->pmpaddr[pmpaddr_idx].val;
+                        uint64 region_end = pmpaddr << 2;
+                        
+                        printf("Region: %p to %p, Perm: %p\n", 
+                            prev_addr, region_end, cfg_byte);
+                        
+                        prev_addr = region_end;
+                    }
+                }
+            }
         }
     } //csrwrite
     else if (funct3 == 0x1) {
