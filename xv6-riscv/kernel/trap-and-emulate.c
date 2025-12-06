@@ -252,8 +252,8 @@ void trap_and_emulate(void) {
     }//SRET
     else if (funct3 == 0 && uimm == 0x102) {
         //printf("entered sret handler\n");
-        uint64 value_sstatus = vmm->sstatus.val;
-        uint64 spp = (value_sstatus >> 8) & 0x1;
+        unsigned long value_sstatus = vmm->sstatus.val;
+        unsigned long spp = (value_sstatus >> 8) & 0x1;
         value_sstatus &= ~(1UL << 8); // Clear the SPP bit
 
         unsigned long spie_bit = (value_sstatus >> 5) & 0x1; // get the previous interrupt enable bit (spie)
@@ -266,18 +266,17 @@ void trap_and_emulate(void) {
         }else{
             if (spp == 1) {
                 vmm->current_exec_mode = VM_MODE_S;
-                p->trapframe->epc = vmm->sepc.val;
 
             }else {
                 if (vmm->current_exec_mode == VM_MODE_S) {
                     vmm->current_exec_mode = VM_MODE_U;
-                    p->trapframe->epc = vmm->sepc.val;
                 } 
                 else{
                     kill(p->pid);
                 }
             }
             vmm->sstatus.val=value_sstatus;
+            p->trapframe->epc = vmm->sepc.val;
         }
     }//MRET
     else if (funct3 == 0 && uimm == 0x302) {
