@@ -308,7 +308,7 @@ void trap_and_emulate(void) {
     }//csrread
     else if (funct3 == 0x2) {
         printf("entered csrread handler\n");
-        struct vm_reg* found_reg = csr_register(uimm);
+        struct vm_reg* found_reg = csr_register(uimm)->val;
         if (found_reg == NULL) {
             printf("Incorrect CSR code %x for execution mode as : %d\n", uimm, vmm->current_exec_mode);
             kill(p->pid);
