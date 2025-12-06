@@ -259,7 +259,7 @@ void do_pmp_switch(struct proc *p){
         pmp_apply_rules(vmm->pagetable);
     }
     p->pagetable = vmm->pagetable;
-    w_satp(MAKE_SATP(vmm->pmp_ptable));
+    w_satp(MAKE_SATP(vmm->pagetable));
     sfence_vma();
 }
 
