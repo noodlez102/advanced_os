@@ -257,7 +257,7 @@ void trap_and_emulate(void) {
         uint64 spp = (value_sstatus >> 8) & 0x1;
         
         if(vmm->current_exec_mode < 1){
-            printf("Called sret not in S mode\n");
+            //printf("Called sret not in S mode\n");
             kill(p->pid);
         }
         else{
@@ -314,7 +314,6 @@ void trap_and_emulate(void) {
         //printf("entered csrread handler\n");
         struct vm_reg* found_reg = csr_register(uimm);
         if (found_reg == NULL) {
-            printf("Incorrect CSR code %x for execution mode as : %d\n", uimm, vmm->current_exec_mode);
             kill(p->pid);
         } else {
             //printf("current mode execution is: %d and the register's mode I am lloking for is: %d\n",vmm->current_exec_mode,found_reg->mode);
