@@ -243,6 +243,11 @@ void trap_and_emulate(void) {
             vmm->current_exec_mode = VM_MODE_S;
             vmm->sepc.val = p->trapframe->epc;
             p->trapframe->epc = vmm->stvec.val;
+        }else if(vmm->current_exec_mode == VM_MODE_S)
+        {
+            vmm->current_exec_mode = VM_MODE_M;
+            vmm->mepc.val = p->trapframe->epc;
+            p->trapframe->epc = vmm->mtvec.val;
         }
     }//SRET
     else if (funct3 == 0 && uimm == 0x102) {
@@ -291,6 +296,7 @@ void trap_and_emulate(void) {
         if (found_reg != NULL) {
             int source_val = get_tf_reg(p->trapframe, rs1);
             if(vmm->current_exec_mode >=found_reg->mode){
+                printf("sucessfully wrote %d\n into %d\n",found_reg->val,found_reg->code);
                 found_reg->val=source_val;
             }else{
                 kill(p->pid);
