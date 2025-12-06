@@ -236,18 +236,16 @@ void trap_and_emulate(void) {
                 addr, op, rd, funct3, rs1, uimm);
 
     //ecall for prints
-    if(funct3 ==0 && uimm==102){
+    if(funct3 == 0 && uimm==0x102){
         //printf("(EC at %p)\n", p->trapframe->epc);
         printf("entered ecall handler\n");
         if(vmm->current_exec_mode == VM_MODE_U)
         {
-
             vmm->current_exec_mode = VM_MODE_S;
             vmm->sepc.val = p->trapframe->epc;
             p->trapframe->epc = vmm->stvec.val;
         }else if(vmm->current_exec_mode == VM_MODE_S)
         {
-
             vmm->current_exec_mode = VM_MODE_M;
             vmm->mepc.val = p->trapframe->epc;
             p->trapframe->epc = vmm->mtvec.val;
