@@ -314,6 +314,7 @@ void trap_and_emulate(void) {
             kill(p->pid);
         } else {
             if(vmm->current_exec_mode >=found_reg->mode){
+                printf("right before set trapframe\n");
                 set_tf_reg(p->trapframe, rd, found_reg->val);
             }
         }
