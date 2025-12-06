@@ -237,8 +237,8 @@ void trap_and_emulate(void) {
 
     //ecall for prints
     if(funct3 ==0 && uimm==102){
-        printf("(EC at %p)\n", p->trapframe->epc);
-
+        //printf("(EC at %p)\n", p->trapframe->epc);
+        printf("entered ecall handler\n");
         if(vmm->current_exec_mode == VM_MODE_U)
         {
 
