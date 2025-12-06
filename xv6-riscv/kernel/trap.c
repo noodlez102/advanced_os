@@ -52,29 +52,27 @@ usertrap(void)
 
   
   
-  if (p->proc_te_vm == 1 && (r_scause() == 2))
+  if (p->proc_te_vm == 1 && (r_scause() == 2 || r_scause() == 1))
   {
     trap_and_emulate();
-    //printf("exited trap_and_emulate\n");
-    if(p->proc_te_vm == 1 && r_scause() == 15){
-        kill(p->pid);
-        printf("Killed from trap.c");
-    }
-  
   }else if(r_scause() == 8){
     // system call
     if(killed(p))
       exit(-1);
+    if (p->proc_te_vm == 1){
+      trap_and_emulate();
+    }else{
+      // sepc points to the ecall instruction,
+      // but we want to return to the next instruction.
+      p->trapframe->epc += 4;
 
-    // sepc points to the ecall instruction,
-    // but we want to return to the next instruction.
-    p->trapframe->epc += 4;
+      // an interrupt will change sepc, scause, and sstatus,
+      // so enable only now that we're done with those registers.
+      intr_on();
 
-    // an interrupt will change sepc, scause, and sstatus,
-    // so enable only now that we're done with those registers.
-    intr_on();
+      syscall();
+    }
 
-    syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
   } else {
