@@ -308,34 +308,44 @@ void trap_and_emulate(void) {
         }
     } //csrwrite
     else if (funct3 == 0x1) {
-        //printf("entered csrwrite handler\n");
         struct vm_reg* found_reg = csr_register(uimm);
-        if (found_reg != NULL) { 
-            int source_val = get_tf_reg(p->trapframe, rs1);//could be rs1-1
-            if(found_reg->code==0xF11 && source_val==0x0){//graceful vm shutdown
-                kill(p->pid);
-            }
-            if(vmm->current_exec_mode >=found_reg->mode){
-                found_reg->val=source_val;
-            }else{
-                kill(p->pid);
-            }
+        if (found_reg == NULL) {
+            kill(p->pid);
+            return;  // Early return if register not found
         }
+        
+        int source_val = get_tf_reg(p->trapframe, rs1);
+        
+        if(found_reg->code == 0xF11 && source_val == 0x0){
+            kill(p->pid);
+            return;
+        }
+        
+        if(vmm->current_exec_mode >= found_reg->mode){
+            found_reg->val = source_val;
+        } else {
+            kill(p->pid);
+            return;
+        }
+        
         p->trapframe->epc += 4;
-
-    }//csrread
+    }
+    //csrread
     else if (funct3 == 0x2) {
-        //printf("entered csrread handler\n");
         struct vm_reg* found_reg = csr_register(uimm);
-        if (found_reg != NULL) {
-            //printf("current mode execution is: %d and the register's mode I am lloking for is: %d\n",vmm->current_exec_mode,found_reg->mode);
-            if(vmm->current_exec_mode >=found_reg->mode){
-                //printf("right before set trapframe\n");
-                set_tf_reg(p->trapframe, rd, found_reg->val);
-            }
+        if (found_reg == NULL) {
+            kill(p->pid);
+            return;  // Early return if register not found
         }
+        
+        if(vmm->current_exec_mode >= found_reg->mode){
+            set_tf_reg(p->trapframe, rd, found_reg->val);
+        } else {
+            kill(p->pid);
+            return;
+        }
+        
         p->trapframe->epc += 4;
-
     }else {
         kill(p->pid);
     }
