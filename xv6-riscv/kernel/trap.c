@@ -49,6 +49,7 @@ usertrap(void)
   
   // save user program counter.
   p->trapframe->epc = r_sepc();
+  printf("pmp is configured %d\n",is_pmp_configured());
     if(is_pmp_configured()) {
         printf("DEBUG: scause = %p, stval = %p\n", r_scause(), r_stval());
     }
