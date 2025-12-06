@@ -243,11 +243,6 @@ void trap_and_emulate(void) {
             vmm->current_exec_mode = VM_MODE_S;
             vmm->sepc.val = p->trapframe->epc;
             p->trapframe->epc = vmm->stvec.val;
-        }else if(vmm->current_exec_mode == VM_MODE_S)
-        {
-            vmm->current_exec_mode = VM_MODE_M;
-            vmm->mepc.val = p->trapframe->epc;
-            p->trapframe->epc = vmm->mtvec.val;
         }
     }//SRET
     else if (funct3 == 0 && uimm == 0x102) {
