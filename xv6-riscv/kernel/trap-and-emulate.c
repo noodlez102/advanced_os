@@ -244,21 +244,17 @@ void uvmcopy_copmp(pagetable_t old, pagetable_t new, uint64 sz){
 }
 
 void pmp_apply_rules(pagetable_t pt) {
-    // Unmap 0x80300000 - 0x80400000
     for(uint64 va = 0x80300000; va < 0x80400000; va += PGSIZE){
         uvmunmap(pt, va, 1, 0);
     }
 }
 
 void do_pmp_switch(struct proc *p){
-    // Create PMP table if not made yet
     if(vmm->pmp_config == 0){
         vmm->pagetable = proc_pagetable(p);
         uvmcopy_copmp(p->pagetable, vmm->pagetable, p->sz);
         pmp_apply_rules(vmm->pagetable);
     }
-
-    // Switch the process to the PMP page table
     p->pagetable = vmm->pagetable;
 }
 
@@ -344,7 +340,25 @@ void trap_and_emulate(void) {
         if(vmm->pmp_config==1){
             vmm->backuppagetable=p->pagetable;
             do_pmp_switch(p);
-            p->pagetable=vmm->backuppagetable;
+            uint64 pmpaddr0 = vmm->pmpaddr[0].val;
+            uint64 pmpcfg0 = vmm->pmpcfg[0].val;
+            
+            // Calculate regions from PMP configuration
+            // Region 1: 0x0 to pmpaddr0 << 2
+            uint64 region1_end = pmpaddr0 << 2;
+            uint64 region1_perm = pmpcfg0 & 0xFF;  // First byte of pmpcfg0
+            
+            printf("Region: 0x%016lx to 0x%016lx, Perm: 0x%016lx\n", 
+                0UL, region1_end, region1_perm);
+            
+            // Region 2: pmpaddr0 << 2 to end of address space (or next region)
+            // For simplicity, assuming it goes to some upper bound
+            uint64 region2_start = region1_end;
+            uint64 region2_end = 0x81000000;  // Adjust based on your setup
+            uint64 region2_perm = (pmpcfg0 >> 8) & 0xFF;  // Second byte
+            
+            printf("Region: 0x%016lx to 0x%016lx, Perm: 0x%016lx\n", 
+                region2_start, region2_end, region2_perm);
         }
     } //csrwrite
     else if (funct3 == 0x1) {
