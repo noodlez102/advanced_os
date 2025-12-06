@@ -303,8 +303,7 @@ void trap_and_emulate(void) {
             p->trapframe->epc = vmm->mepc.val; 
         }
         else{
-            setkilled(p);
-            
+            kill(p->pid);
             trap_and_emulate_init();
         }
     } //csrwrite
@@ -321,25 +320,21 @@ void trap_and_emulate(void) {
             }else{
                 kill(p->pid);
             }
-        } else {
-            kill(p->pid);
-        }
         p->trapframe->epc += 4;
+        }
     }//csrread
     else if (funct3 == 0x2) {
         //printf("entered csrread handler\n");
         struct vm_reg* found_reg = csr_register(uimm);
-        if (found_reg == NULL) {
-            printf("Incorrect CSR code %x for execution mode as : %d\n", uimm, vmm->current_exec_mode);
-            kill(p->pid);
-        } else {
+        if (found_reg != NULL) {
             //printf("current mode execution is: %d and the register's mode I am lloking for is: %d\n",vmm->current_exec_mode,found_reg->mode);
             if(vmm->current_exec_mode >=found_reg->mode){
                 //printf("right before set trapframe\n");
                 set_tf_reg(p->trapframe, rd, found_reg->val);
             }
+            p->trapframe->epc += 4;
+
         }
-        p->trapframe->epc += 4;
     }else {
         kill(p->pid);
     }
