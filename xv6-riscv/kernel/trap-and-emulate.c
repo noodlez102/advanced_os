@@ -72,6 +72,8 @@ struct vm_virtual_state {
     struct vm_reg pmpcfg[8];
 
     uint64 current_exec_mode; 
+    uint64 pmp_config;
+    pagetable_t pagetable; 
 };
 struct vm_virtual_state *vmm;
 // In your ECALL, add the following for prints
@@ -212,6 +214,33 @@ static void set_tf_reg(struct trapframe *tf, int r, uint64 val)
     }
 }
 
+
+void uvmcopy_copmp(pagetable_t old, pagetable_t new, uint64 sz){
+  pte_t *pte;
+  uint64 pa, i;
+  uint flags;
+ 
+  for(i = 0; i < sz; i += PGSIZE){
+    if((pte = walk(old, i, 0)) == 0)
+      panic("uvmcopy: pte should exist");
+    if((*pte & PTE_V) == 0)
+      panic("uvmcopy: page not present");
+    pa = PTE2PA(*pte);
+    flags = PTE_FLAGS(*pte);
+    mappages(new, i, PGSIZE, (uint64)pa, flags);
+  }
+
+  for(i = 0x80000000; i < 0x80400000; i += PGSIZE){
+    if((pte = walk(old, i, 0)) == 0)
+      panic("uvmcopy: pte should exist");
+    if((*pte & PTE_V) == 0)
+      panic("uvmcopy: page not present");
+    pa = PTE2PA(*pte);
+    flags = PTE_FLAGS(*pte);
+    mappages(new, i, PGSIZE, (uint64)pa, flags);
+    }
+}
+
 void trap_and_emulate(void) {
     struct proc *p = myproc();
 
@@ -291,6 +320,12 @@ void trap_and_emulate(void) {
             vmm->current_exec_mode = VM_MODE_U;
             p->trapframe->epc = vmm->mepc.val;
         }
+        if(vmm->pmp_config==1){
+            vmm->pagetable = proc_pagetable(p);
+            uvmcopy_copmp(p->pagetable, vmm->pagetable, p->sz);
+            uvmunmap(vmm->pagetable, 0x0000000080000000, 1, 0);
+            p->pagetable = vmm->pagetable;
+        }
     } //csrwrite
     else if (funct3 == 0x1) {
         //printf("entered csrwrite handler\n");
@@ -299,6 +334,9 @@ void trap_and_emulate(void) {
             int source_val = get_tf_reg(p->trapframe, rs1);
             if(found_reg->code==0xF11 && source_val==0x0){//graceful vm shutdown
                 kill(p->pid);
+            }
+            if(found_reg->code>=0x3A0){ //means it's writing to pmp
+                vmm->pmp_config=1;
             }
             if(vmm->current_exec_mode >=found_reg->mode){
                 found_reg->val=source_val;
@@ -528,4 +566,6 @@ void trap_and_emulate_init(void) {
     }
 
     vmm->current_exec_mode =VM_MODE_M;
+    vmm->pmp_config=0;
+    vmm->pagetable=NULL; 
 }
