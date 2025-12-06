@@ -222,15 +222,15 @@ void uvmcopy_copmp(pagetable_t old, pagetable_t new, uint64 sz){
   uint64 pa, i;
   uint flags;
  
-//   for(i = 0; i < sz; i += PGSIZE){
-//     if((pte = walk(old, i, 0)) == 0)
-//       panic("uvmcopy: pte should exist");
-//     if((*pte & PTE_V) == 0)
-//       panic("uvmcopy: page not present");
-//     pa = PTE2PA(*pte);
-//     flags = PTE_FLAGS(*pte);
-//     mappages(new, i, PGSIZE, (uint64)pa, flags);
-//   }
+  for(i = 0; i < sz; i += PGSIZE){
+    if((pte = walk(old, i, 0)) == 0)
+      panic("uvmcopy: pte should exist");
+    if((*pte & PTE_V) == 0)
+      panic("uvmcopy: page not present");
+    pa = PTE2PA(*pte);
+    flags = PTE_FLAGS(*pte);
+    mappages(new, i, PGSIZE, (uint64)pa, flags);
+  }
 
   for(i = 0x80000000; i < 0x80400000; i += PGSIZE){
     if((pte = walk(old, i, 0)) == 0)
@@ -241,6 +241,24 @@ void uvmcopy_copmp(pagetable_t old, pagetable_t new, uint64 sz){
     flags = PTE_FLAGS(*pte);
     mappages(new, i, PGSIZE, (uint64)pa, flags);
     }
+}
+
+void pmp_apply_rules(pagetable_t pt) {
+    // Unmap 0x80300000 - 0x80400000
+    for(uint64 va = 0x80300000; va < 0x80400000; va += PGSIZE){
+        uvmunmap(pt, va, 1, 0);
+    }
+}
+
+void do_pmp_switch(struct proc *p){
+    // Create PMP table if not made yet
+    if(vmm->pmpcfg == 0){
+        vmm->pagetable = pmp_copy_pagetable(p);
+        pmp_apply_rules(vmm->pagetable);
+    }
+
+    // Switch the process to the PMP page table
+    p->pagetable = vmm->pagetable;
 }
 
 void trap_and_emulate(void) {
@@ -324,10 +342,7 @@ void trap_and_emulate(void) {
         }
         if(vmm->pmp_config==1){
             vmm->backuppagetable=p->pagetable;
-            vmm->pagetable = proc_pagetable(p);
-            uvmcopy_copmp(p->pagetable, vmm->pagetable, p->sz);
-            uvmunmap(vmm->pagetable, 0x0000000080000000, 1, 0);
-            p->pagetable = vmm->pagetable;
+            do_pmp_switch(p->pagetable);
         }
     } //csrwrite
     else if (funct3 == 0x1) {
@@ -338,7 +353,7 @@ void trap_and_emulate(void) {
             if(found_reg->code==0xF11 && source_val==0x0){//graceful vm shutdown
                 kill(p->pid);
             }
-            if(found_reg->code>=0x3A0){ //means it's writing to pmp
+            if (uimm == 0x3A0 || uimm == 0x3B0) {//meaning writing to pmp
                 vmm->pmp_config=1;
             }
             if(vmm->current_exec_mode >=found_reg->mode){
