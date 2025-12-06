@@ -357,7 +357,7 @@ void trap_and_emulate(void) {
             uint64 region2_end = 0x81000000;  // Adjust based on your setup
             uint64 region2_perm = (pmpcfg0 >> 8) & 0xFF;  // Second byte
             
-            printf("Region: 0x%016lx to 0x%016lx, Perm: 0x%016lx\n", 
+            printf("Region: %p to %p, Perm: %p\n", 
                 region2_start, region2_end, region2_perm);
         }
     } //csrwrite
