@@ -6,6 +6,7 @@
 #include "proc.h"
 #include "defs.h"
 #include <stdlib.h> 
+#include <stdbool.h> 
 
 // Execution Mode Declarations
 #define U_MODE 0
