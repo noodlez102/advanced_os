@@ -134,12 +134,7 @@ void mret_manager(struct proc *p){
         
         trap_and_emulate_init();
     }
-    if(vm_state.is_pmp){
-        vm_state.vm_ptable = proc_pagetable(p);
-        uvmcopy_copmp(p->pagetable, vm_state.vm_ptable, p->sz);
-        uvmunmap(vm_state.vm_ptable, 0x0000000080000000, 1, 0);
-        p->pagetable = vm_state.vm_ptable;
-    }
+
 }
 
 int find_csr(unsigned int uimm){
