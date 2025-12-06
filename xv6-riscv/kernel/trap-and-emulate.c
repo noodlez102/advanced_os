@@ -696,6 +696,7 @@ void trap_and_emulate(void) {
             printf("Incorrect CSR code %x for execution mode as : %d\n", uimm, vmm->exec_mode);
             kill(p->pid);
         } else {
+            printf("current value: %d, and register value: %d\n",vmm->exec_mode,found_reg->mode);
             csrr_write_trapframe(rd, found_reg->val, p);
         }
         p->trapframe->epc += 4;
