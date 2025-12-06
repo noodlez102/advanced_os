@@ -281,19 +281,35 @@ void trap_and_emulate(void) {
     }//MRET
     else if (funct3 == 0 && uimm == 0x302) {
         //printf("entered mret handler\n");
-        uint64 value_mstatus = vmm->mstatus.val;
-        uint64 mpp = (value_mstatus >> 11) & 0x3;
-        if (mpp == 3) {
-            vmm->current_exec_mode = VM_MODE_M;
-            p->trapframe->epc = vmm->mepc.val;
-        } else if (mpp == 2) {
-            kill(p->pid);
-        } else if (mpp == 1) {
-            vmm->current_exec_mode = VM_MODE_S;
-            p->trapframe->epc = vmm->mepc.val;
-        } else if (mpp == 0) {
-            vmm->current_exec_mode = VM_MODE_U;
-            p->trapframe->epc = vmm->mepc.val;
+        if(vmm->current_exec_mode >= 2){
+            unsigned long mstatus = vmm->mstatus.val;
+
+            unsigned long int mpp = (mstatus >> 11) & 0x1; // Extract the previous privilege level (mpp)
+            mstatus &= ~MSTATUS_MPP_MASK; // clear MPP bits
+
+            unsigned long int mpie = (mstatus >> 7) & 0x1; // Extract the previous interrupt enable bit (MPIE) from mstatus
+
+            mstatus |= mpie << 3; // set MIE bit to MPIE
+            mstatus &= (1 << 0x7); // set MPIE bit to 1
+            mstatus &= ~(1 << 0x17); // clear MPRV bit
+
+            
+            // set the current privilege level (priv) to mpp
+            if(mpp){
+                vmm->current_exec_mode = VM_MODE_S;
+            }
+            else{
+                vmm->current_exec_mode = VM_MODE_U;
+            }
+
+            vmm->mstatus.val = mstatus; // write mstatus register
+
+            p->trapframe->epc = vmm->mepc.val; // set the program count to the value of mepc
+        }
+        else{
+            setkilled(p);
+            
+            trap_and_emulate_init();
         }
     } //csrwrite
     else if (funct3 == 0x1) {
