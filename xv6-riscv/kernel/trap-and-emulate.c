@@ -320,8 +320,9 @@ void trap_and_emulate(void) {
             }else{
                 kill(p->pid);
             }
-        p->trapframe->epc += 4;
         }
+        p->trapframe->epc += 4;
+
     }//csrread
     else if (funct3 == 0x2) {
         //printf("entered csrread handler\n");
@@ -332,9 +333,9 @@ void trap_and_emulate(void) {
                 //printf("right before set trapframe\n");
                 set_tf_reg(p->trapframe, rd, found_reg->val);
             }
-            p->trapframe->epc += 4;
-
         }
+        p->trapframe->epc += 4;
+
     }else {
         kill(p->pid);
     }
