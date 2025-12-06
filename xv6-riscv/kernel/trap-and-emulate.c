@@ -682,7 +682,12 @@ void trap_and_emulate(void) {
             vmm->exec_mode = U_MODE;
             p->trapframe->epc = vmm->mepc.val;
         }
-
+        pmp_configuration(M_MODE);
+        if(pmp_config == true)
+        {
+            //printf("Kill the process");
+            kill(p->pid);
+        }
     } 
     // Handle csrr (CSR Read)
     else if (funct3 == 0x2) {
