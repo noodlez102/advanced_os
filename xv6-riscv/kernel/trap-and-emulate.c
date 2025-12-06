@@ -66,7 +66,6 @@ struct vm_virtual_state {
     struct vm_reg mip;
     struct vm_reg mtinst; 
     struct vm_reg mtval2;
-    struct vm_reg mepc;
 
     //Machine PMP
     struct vm_reg pmpaddr[64];
@@ -305,13 +304,13 @@ void trap_and_emulate(void) {
         p->trapframe->epc += 4;
     }//csrread
     else if (funct3 == 0x2) {
-        struct vm_reg* found_reg = csr_register(uimm, vmm->current_exec_mode);
+        struct vm_reg* found_reg = csr_register(uimm);
         if (found_reg == NULL) {
             printf("Incorrect CSR code %x for execution mode as : %d\n", uimm, vmm->current_exec_mode);
             kill(p->pid);
         } else {
             if(vmm->current_exec_mode >=found_reg->mode){
-                (p->trapframe, rd, found_reg->val);
+                set_tf_reg(p->trapframe, rd, found_reg->val);
             }
         }
         p->trapframe->epc += 4;
