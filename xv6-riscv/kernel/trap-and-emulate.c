@@ -259,8 +259,6 @@ void do_pmp_switch(struct proc *p){
         pmp_apply_rules(vmm->pagetable);
     }
     p->pagetable = vmm->pagetable;
-    w_satp(MAKE_SATP(vmm->pagetable));
-    sfence_vma();
 }
 
 void trap_and_emulate(void) {
@@ -366,6 +364,9 @@ void trap_and_emulate(void) {
                     }
                 }
             }
+            
+            w_satp(MAKE_SATP(p->pagetable));
+            sfence_vma();
         }
     } //csrwrite
     else if (funct3 == 0x1) {

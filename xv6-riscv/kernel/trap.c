@@ -50,7 +50,7 @@ usertrap(void)
   // save user program counter.
   p->trapframe->epc = r_sepc();
 
-  if (r_scause() == 13 || r_scause() == 15) {  // Load/Store page fault
+  if (r_scause() == 13 || r_scause() == 15 || r_scause() == 12) {  // Load/Store page fault
     uint64 faulting_addr = r_stval();
     printf("entered before pmp config\n");
     if(is_pmp_configured()) {
