@@ -236,22 +236,26 @@ void trap_and_emulate(void) {
                 addr, op, rd, funct3, rs1, uimm);
 
     //ecall for prints
-    if(funct3 ==0 && uimm==0){
-        printf("(EC at %p)\n", p->trapframe->epc);
+    if(funct3 ==0 && uimm==102){
+        //printf("(EC at %p)\n", p->trapframe->epc);
 
         if(vmm->current_exec_mode == VM_MODE_U)
         {
+            printf("(EC at %p)\n", p->trapframe->epc);
+
             vmm->current_exec_mode = VM_MODE_S;
             vmm->sepc.val = p->trapframe->epc;
             p->trapframe->epc = vmm->stvec.val;
         }else if(vmm->current_exec_mode == VM_MODE_S)
         {
+            printf("(EC at %p)\n", p->trapframe->epc);
+
             vmm->current_exec_mode = VM_MODE_M;
             vmm->mepc.val = p->trapframe->epc;
             p->trapframe->epc = vmm->mtvec.val;
         }
     }//SRET
-    else if (funct3 == 0 && uimm == 0x102) {
+    else if (funct3 == 0 && uimm == 0x202) {
         //printf("entered sret handler\n");
         uint64 value_sstatus = vmm->sstatus.val;
         uint64 spp = (value_sstatus >> 8) & 0x1;
