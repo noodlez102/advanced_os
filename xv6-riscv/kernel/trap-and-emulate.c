@@ -236,9 +236,9 @@ void trap_and_emulate(void) {
                 addr, op, rd, funct3, rs1, uimm);
 
     //ecall for prints
-    if(funct3 == 0 && uimm==0x102){
+    if(r_scause()==8){
         printf("(EC at %p)\n", p->trapframe->epc);
-        p->trapframe->epc += 4;
+        
         if(vmm->current_exec_mode == VM_MODE_U)
         {
             vmm->current_exec_mode = VM_MODE_S;
@@ -251,7 +251,7 @@ void trap_and_emulate(void) {
             p->trapframe->epc = vmm->mtvec.val;
         }
     }//SRET
-    else if (funct3 == 0 && uimm == 0x202) {
+    else if (funct3 == 0 && uimm == 0x102) {
         //printf("entered sret handler\n");
         uint64 value_sstatus = vmm->sstatus.val;
         uint64 spp = (value_sstatus >> 8) & 0x1;
