@@ -364,9 +364,14 @@ void trap_and_emulate(void) {
                     }
                 }
             }
-            
-            w_satp(MAKE_SATP(p->pagetable));
-            sfence_vma();
+
+        uint64 return_addr = p->trapframe->epc;
+        if(return_addr < 0x100000) {  // Adjust based on your restricted region
+            printf("Page Fault Occured. Probably due to PMP Violation\n");
+            printf("Accessing Address: %p\n", return_addr);
+            kill(p->pid);
+            return;
+        }
         }
     } //csrwrite
     else if (funct3 == 0x1) {

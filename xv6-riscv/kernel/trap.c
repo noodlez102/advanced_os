@@ -49,10 +49,13 @@ usertrap(void)
   
   // save user program counter.
   p->trapframe->epc = r_sepc();
+
   printf("pmp is configured %d\n",is_pmp_configured());
-    if(is_pmp_configured()) {
-        printf("DEBUG: scause = %p, stval = %p\n", r_scause(), r_stval());
-    }
+
+  if(is_pmp_configured()) {
+    printf("DEBUG: scause = %p, stval = %p\n", r_scause(), r_stval());
+  }
+  
   if (r_scause() == 13 || r_scause() == 15 || r_scause() == 12) {  // Load/Store page fault
     uint64 faulting_addr = r_stval();
     printf("entered before pmp config\n");
