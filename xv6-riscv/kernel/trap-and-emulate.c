@@ -230,12 +230,6 @@ void trap_and_emulate(void) {
     uint32 rs1    = (instr >> 15) & 0x1f;
     uint32 uimm   = (instr >> 20) & 0xfff;
 
-
-    /* Print the statement */
-    printf("(PI at %p) op = %x, rd = %x, funct3 = %x, rs1 = %x, uimm = %x\n", 
-                addr, op, rd, funct3, rs1, uimm);
-
-    //ecall for prints
     if(funct3 == 0 && uimm == 0){
         printf("(EC at %p)\n", p->trapframe->epc);
         if(vmm->current_exec_mode == VM_MODE_U)
@@ -249,72 +243,60 @@ void trap_and_emulate(void) {
             vmm->mepc.val = p->trapframe->epc;
             p->trapframe->epc = vmm->mtvec.val;
         }
-    }//SRET
-    else if (funct3 == 0 && uimm == 0x102) {
+        return;
+    }
+    /* Print the statement */
+    printf("(PI at %p) op = %x, rd = %x, funct3 = %x, rs1 = %x, uimm = %x\n", 
+                addr, op, rd, funct3, rs1, uimm);
+
+    //ecall for prints
+//SRET
+    if (funct3 == 0 && uimm == 0x102) {
         //printf("entered sret handler\n");
-        unsigned long value_sstatus = vmm->sstatus.val;
-        unsigned long spp = (value_sstatus >> 8) & 0x1;
-        value_sstatus &= ~(1UL << 8); // Clear the SPP bit
-
-        unsigned long spie_bit = (value_sstatus >> 5) & 0x1; // get the previous interrupt enable bit (spie)
-        value_sstatus |= spie_bit << 1; // set SIE bit to SPIE
-        value_sstatus &= ~(1UL << 5); // set SPIE bit to 1
-
+        uint64 value_sstatus = vmm->sstatus.val;
+        uint64 spp = (value_sstatus >> 8) & 0x1;
+        
         if(vmm->current_exec_mode < 1){
-            //printf("Called sret not in S mode\n");
+            printf("Called sret not in S mode\n");
             kill(p->pid);
-        }else{
+        }
+        else{
             if (spp == 1) {
                 vmm->current_exec_mode = VM_MODE_S;
-
-            }else {
+            } 
+            else {
                 if (vmm->current_exec_mode == VM_MODE_S) {
                     vmm->current_exec_mode = VM_MODE_U;
+                    p->trapframe->epc = vmm->sepc.val;
                 } 
                 else{
                     kill(p->pid);
                 }
             }
-            vmm->sstatus.val=value_sstatus;
-            p->trapframe->epc = vmm->sepc.val;
         }
-        return;
     }//MRET
     else if (funct3 == 0 && uimm == 0x302) {
         //printf("entered mret handler\n");
-        if(vmm->current_exec_mode >= 2){
-            unsigned long mstatus = vmm->mstatus.val;
-
-            unsigned long int mpp = (mstatus >> 11) & 0x1; 
-            mstatus &= ~MSTATUS_MPP_MASK; 
-
-            unsigned long int mpie = (mstatus >> 7) & 0x1; 
-
-            mstatus |= mpie << 3; 
-            mstatus &= (1 << 0x7); 
-            mstatus &= ~(1 << 0x17); 
-
-            if(mpp){
-                vmm->current_exec_mode = VM_MODE_S;
-            }
-            else{
-                vmm->current_exec_mode = VM_MODE_U;
-            }
-            vmm->mstatus.val = mstatus; 
-            p->trapframe->epc = vmm->mepc.val; 
-        }
-        else{
+        uint64 value_mstatus = vmm->mstatus.val;
+        uint64 mpp = (value_mstatus >> 11) & 0x3;
+        if (mpp == 3) {
+            vmm->current_exec_mode = VM_MODE_M;
+            p->trapframe->epc = vmm->mepc.val;
+        } else if (mpp == 2) {
             kill(p->pid);
-            trap_and_emulate_init();
+        } else if (mpp == 1) {
+            vmm->current_exec_mode = VM_MODE_S;
+            p->trapframe->epc = vmm->mepc.val;
+        } else if (mpp == 0) {
+            vmm->current_exec_mode = VM_MODE_U;
+            p->trapframe->epc = vmm->mepc.val;
         }
-        return;
-
     } //csrwrite
     else if (funct3 == 0x1) {
         //printf("entered csrwrite handler\n");
         struct vm_reg* found_reg = csr_register(uimm);
-        if (found_reg != NULL) { 
-            int source_val = get_tf_reg(p->trapframe, rs1);//could be rs1-1
+        if (found_reg != NULL) {
+            int source_val = get_tf_reg(p->trapframe, rs1);
             if(found_reg->code==0xF11 && source_val==0x0){//graceful vm shutdown
                 kill(p->pid);
             }
@@ -323,14 +305,18 @@ void trap_and_emulate(void) {
             }else{
                 kill(p->pid);
             }
+        } else {
+            kill(p->pid);
         }
         p->trapframe->epc += 4;
-
     }//csrread
     else if (funct3 == 0x2) {
         //printf("entered csrread handler\n");
         struct vm_reg* found_reg = csr_register(uimm);
-        if (found_reg != NULL) {
+        if (found_reg == NULL) {
+            printf("Incorrect CSR code %x for execution mode as : %d\n", uimm, vmm->current_exec_mode);
+            kill(p->pid);
+        } else {
             //printf("current mode execution is: %d and the register's mode I am lloking for is: %d\n",vmm->current_exec_mode,found_reg->mode);
             if(vmm->current_exec_mode >=found_reg->mode){
                 //printf("right before set trapframe\n");
@@ -338,7 +324,6 @@ void trap_and_emulate(void) {
             }
         }
         p->trapframe->epc += 4;
-
     }else {
         kill(p->pid);
     }
