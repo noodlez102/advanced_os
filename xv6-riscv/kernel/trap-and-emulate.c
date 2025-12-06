@@ -74,6 +74,8 @@ struct vm_virtual_state {
     uint64 current_exec_mode; 
     uint64 pmp_config;
     pagetable_t pagetable; 
+    pagetable_t backuppagetable; 
+
 };
 struct vm_virtual_state *vmm;
 // In your ECALL, add the following for prints
@@ -321,10 +323,11 @@ void trap_and_emulate(void) {
             p->trapframe->epc = vmm->mepc.val;
         }
         if(vmm->pmp_config==1){
+            vmm->backuppagetable=p->pagetable;
             vmm->pagetable = proc_pagetable(p);
             uvmcopy_copmp(p->pagetable, vmm->pagetable, p->sz);
             uvmunmap(vmm->pagetable, 0x0000000080000000, 1, 0);
-            p->pagetable = vmm->pagetable;
+            p->pagetable = vmm->backuppagetable;
         }
     } //csrwrite
     else if (funct3 == 0x1) {
@@ -568,4 +571,6 @@ void trap_and_emulate_init(void) {
     vmm->current_exec_mode =VM_MODE_M;
     vmm->pmp_config=0;
     vmm->pagetable=NULL; 
+    vmm->backuppagetable=NULL; 
+
 }
