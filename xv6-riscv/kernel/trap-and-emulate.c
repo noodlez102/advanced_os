@@ -238,7 +238,6 @@ void trap_and_emulate(void) {
     //ecall for prints
     if(funct3 == 0 && uimm == 0x0){
         printf("(EC at %p)\n", p->trapframe->epc);
-        p->trapframe->epc+=4;
         if(vmm->current_exec_mode == VM_MODE_U)
         {
             vmm->current_exec_mode = VM_MODE_S;
