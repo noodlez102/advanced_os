@@ -250,8 +250,15 @@ void uvmcopy_copmp(pagetable_t old, pagetable_t new, uint64 sz){
       panic("uvmcopy: page not present");
     pa = PTE2PA(*pte);
     flags = PTE_FLAGS(*pte);
-    mappages(new, i, PGSIZE, (uint64)pa, flags);
+    if((mem = kalloc()) == 0){
+        printf("unable to kalloc men\n");
     }
+    memmove(mem, (char*)pa, PGSIZE);
+    if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
+      kfree(mem);
+    }
+    }
+
 }
 
 void pmp_apply_rules(pagetable_t pt) {
