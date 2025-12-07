@@ -368,6 +368,7 @@ void trap_and_emulate(void) {
             vmm->current_exec_mode = VM_MODE_M;
             vmm->mepc.val = p->trapframe->epc;
             p->trapframe->epc = vmm->mtvec.val;
+            p->pagetable=vmm->pagetable;
         }
         return;
     }
@@ -376,7 +377,7 @@ void trap_and_emulate(void) {
                 addr, op, rd, funct3, rs1, uimm);
 
     //ecall for prints
-//SRET
+    //SRET
     if (funct3 == 0 && uimm == 0x102) {
         //printf("entered sret handler\n");
         uint64 value_sstatus = vmm->sstatus.val;
