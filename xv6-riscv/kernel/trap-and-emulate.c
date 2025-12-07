@@ -221,29 +221,45 @@ int is_pmp_configured(void) {
 }
 
 void uvmcopy_copmp(pagetable_t old, pagetable_t new, uint64 sz){
-  pte_t *pte;
-  uint64 pa, i;
-  uint flags;
- 
-  for(i = 0; i < sz; i += PGSIZE){
-    if((pte = walk(old, i, 0)) == 0)
-      panic("uvmcopy: pte should exist");
-    if((*pte & PTE_V) == 0)
-      panic("uvmcopy: page not present");
-    pa = PTE2PA(*pte);
-    flags = PTE_FLAGS(*pte);
-    mappages(new, i, PGSIZE, (uint64)pa, flags);
-  }
+    pte_t *pte;
+    uint64 pa, i;
+    uint flags;
+    char *mem;
+
+    for(i = 0; i < sz; i += PGSIZE){
+        if((pte = walk(old, i, 0)) == 0)
+        panic("uvmcopy: pte should exist");
+        if((*pte & PTE_V) == 0)
+        panic("uvmcopy: page not present");
+        pa = PTE2PA(*pte);
+        flags = PTE_FLAGS(*pte);
+        if((mem = kalloc()) == 0)
+        goto err;
+        memmove(mem, (char*)pa, PGSIZE);
+        if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
+        kfree(mem);
+        goto err;
+        }
+    }
 
   for(i = 0x80000000; i < 0x80400000; i += PGSIZE){
-    if((pte = walk(old, i, 0)) == 0)
-      panic("uvmcopy: pte should exist");
-    if((*pte & PTE_V) == 0)
-      panic("uvmcopy: page not present");
-    pa = PTE2PA(*pte);
-    flags = PTE_FLAGS(*pte);
-    mappages(new, i, PGSIZE, (uint64)pa, flags);
+        if((pte = walk(old, i, 0)) == 0)
+        panic("uvmcopy: pte should exist");
+        if((*pte & PTE_V) == 0)
+        panic("uvmcopy: page not present");
+        pa = PTE2PA(*pte);
+        flags = PTE_FLAGS(*pte);
+        if((mem = kalloc()) == 0)
+        goto err;
+        memmove(mem, (char*)pa, PGSIZE);
+        if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
+        kfree(mem);
+        goto err;
+        }
     }
+ err:
+  uvmunmap(new, 0, i / PGSIZE, 1);
+  return -1;
 }
 
 void pmp_apply_rules(pagetable_t pt) {
@@ -254,33 +270,26 @@ void pmp_apply_rules(pagetable_t pt) {
         
         if(pmpaddr_val == 0) continue;
         
-        // Get the config byte for this entry
         int cfg_reg_idx = (i / 8) * 2;
         int cfg_byte_idx = i % 8;
         
         uint64 pmpcfg = vmm->pmpcfg[cfg_reg_idx].val;
         uint64 cfg_byte = (pmpcfg >> (cfg_byte_idx * 8)) & 0xFF;
         
-        // Check A field (bits 3-4)
         int A = (cfg_byte >> 3) & 0x3;
         
-        // TOR address (shifted left by 2)
         uint64 region_end = pmpaddr_val << 2;
         uint64 region_start = prev_addr;
         
-        // Update prev_addr for next iteration
         prev_addr = region_end;
         
-        if(A == 0) continue;  // OFF, skip
+        if(A == 0) continue;  
         
-        // Check permissions
         int R = cfg_byte & 0x1;
         int W = (cfg_byte >> 1) & 0x1;
         int X = (cfg_byte >> 2) & 0x1;
         
-        // If NO permissions, unmap this region
         if(R == 0 && W == 0 && X == 0) {
-            // Unmap all pages in [region_start, region_end)
             for(uint64 va = region_start; va < region_end; va += PGSIZE) {
                 pte_t *pte = walk(pt, va, 0);
                 if(pte && (*pte & PTE_V)) {
@@ -302,19 +311,14 @@ void print_pmp_regions(void) {
         
         if(pmpaddr_val == 0) continue;
         
-        // Get the config byte for this entry
         int cfg_reg_idx = (i / 8) * 2;
         int cfg_byte_idx = i % 8;
         
         uint64 pmpcfg = vmm->pmpcfg[cfg_reg_idx].val;
         uint64 cfg_byte = (pmpcfg >> (cfg_byte_idx * 8)) & 0xFF;
         
-        // // Check A field - if OFF, skip but update prev_addr
-        // int A = (cfg_byte >> 3) & 0x3;
-        
         uint64 region_end = pmpaddr_val << 2;
         
-        // Print region (TOR mode: from prev_addr to this addr)
         printf("Region: %p to %p, Perm: %p\n", prev_addr, region_end, cfg_byte);
         
         prev_addr = region_end;
