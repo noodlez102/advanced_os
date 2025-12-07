@@ -195,6 +195,7 @@ void            trap_and_emulate(void);
 void            trap_and_emulate_ecall(void);
 void            trap_and_emulate_init(void);
 int             is_pmp_configured(void);
+pagetable_t     vmm_pagetable_backup(void);
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))

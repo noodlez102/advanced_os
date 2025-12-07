@@ -294,6 +294,9 @@ void pmp_apply_rules(pagetable_t pt) {
         prev_addr = region_end;
     }
 }
+pagetable_t vmm_pagetable_backup(void){
+    return vmm->backuppagetable;
+}
 
 void print_pmp_regions(void) {
     uint64 prev_addr = 0;
