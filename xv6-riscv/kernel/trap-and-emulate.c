@@ -247,37 +247,47 @@ void uvmcopy_copmp(pagetable_t old, pagetable_t new, uint64 sz){
 }
 
 void pmp_apply_rules(pagetable_t pt) {
-    uint64 base_addr = 0x80000000;
-    uint64 end_addr = vmm->pmpaddr[0].val;
-    uint64 cfg = vmm->pmpcfg[0].val;
-    cfg = cfg & 0xFF0;
-    cfg = cfg >> 8;
-    for (uint64 i = base_addr; i < end_addr; i += PGSIZE) {
-        //printf("Checking address: 0x%lx\n", i);
-
-        pte_t *pte = walk(vmm->pagetable, i, 0);
-        if (pte && (*pte & PTE_V)) {  // Ensure the PTE is valid
-            //printf("Original PTE at address 0x%lx: 0x%lx\n", i, *pte);
-
-            uint64 new_pte = PA2PTE(PTE2PA(*pte)) | PTE_V;
-
-            // Set new permissions based on the configuration
-            if (cfg & PTE_R) {
-                //printf(" Updated Read permissionn");
-                new_pte |= PTE_R;
+    uint64 prev_addr = 0;
+    
+    for(int i = 0; i < 64; i++) {
+        uint64 pmpaddr_val = vmm->pmpaddr[i].val;
+        
+        if(pmpaddr_val == 0) continue;
+        
+        // Get the config byte for this entry
+        int cfg_reg_idx = (i / 8) * 2;
+        int cfg_byte_idx = i % 8;
+        
+        uint64 pmpcfg = vmm->pmpcfg[cfg_reg_idx].val;
+        uint64 cfg_byte = (pmpcfg >> (cfg_byte_idx * 8)) & 0xFF;
+        
+        // Check A field (bits 3-4)
+        int A = (cfg_byte >> 3) & 0x3;
+        
+        // TOR address (shifted left by 2)
+        uint64 region_end = pmpaddr_val << 2;
+        uint64 region_start = prev_addr;
+        
+        // Update prev_addr for next iteration
+        prev_addr = region_end;
+        
+        if(A == 0) continue;  // OFF, skip
+        
+        // Check permissions
+        int R = cfg_byte & 0x1;
+        int W = (cfg_byte >> 1) & 0x1;
+        int X = (cfg_byte >> 2) & 0x1;
+        
+        // If NO permissions, unmap this region
+        if(R == 0 && W == 0 && X == 0) {
+            // Unmap all pages in [region_start, region_end)
+            for(uint64 va = region_start; va < region_end; va += PGSIZE) {
+                pte_t *pte = walk(pt, va, 0);
+                if(pte && (*pte & PTE_V)) {
+                    uvmunmap(pt, va, 1, 0);
+                }
             }
-            if (cfg & PTE_W) {
-                //printf("Updated Write permission\n");
-                new_pte |= PTE_W;
-            }
-            if (cfg & PTE_X) {
-                //printf("Updated Execute permission\n");
-                new_pte |= PTE_X;
-            }
-
-            *pte = new_pte;
-
-        } 
+        }
     }
 }
 pagetable_t vmm_pagetable_backup(void){
