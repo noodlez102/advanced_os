@@ -340,65 +340,59 @@ void trap_and_emulate(void) {
             vmm->current_exec_mode = VM_MODE_U;
             p->trapframe->epc = vmm->mepc.val;
         }
-        if(vmm->pmp_config==1){
-            vmm->backuppagetable=p->pagetable;
+        if(vmm->pmp_config == 1){
+            vmm->backuppagetable = p->pagetable;
             do_pmp_switch(p);
-
+            
+            // Print PMP regions - check all pmpaddr entries
             uint64 prev_addr = 0;
             
-            for(int cfg_idx = 0; cfg_idx < 8; cfg_idx += 2) {  // Even indices only (0, 2, 4, 6)
-                uint64 pmpcfg = vmm->pmpcfg[cfg_idx].val;
+            for(int i = 0; i < 64; i++) {
+                uint64 pmpaddr_val = vmm->pmpaddr[i].val;
                 
-                for(int entry = 0; entry < 8; entry++) {
-                    int pmpaddr_idx = (cfg_idx / 2) * 8 + entry;
-                    if(pmpaddr_idx >= 64) break;
+                if(pmpaddr_val != 0) {
+                    // Get the config byte for this entry
+                    int cfg_reg_idx = (i / 8) * 2;  // Which pmpcfg register
+                    int cfg_byte_idx = i % 8;        // Which byte within that register
                     
-                    uint64 cfg_byte = (pmpcfg >> (entry * 8)) & 0xFF;
+                    uint64 pmpcfg = vmm->pmpcfg[cfg_reg_idx].val;
+                    uint64 cfg_byte = (pmpcfg >> (cfg_byte_idx * 8)) & 0xFF;
                     
-                    if(cfg_byte != 0) {
-                        uint64 pmpaddr = vmm->pmpaddr[pmpaddr_idx].val;
-                        uint64 region_end = pmpaddr << 2;
-                        
-                        printf("Region: %p to %p, Perm: %p\n", prev_addr, region_end, cfg_byte);
-                        prev_addr = region_end;
-                    }
+                    uint64 region_end = pmpaddr_val << 2;
+                    
+                    printf("Region: %p to %p, Perm: %p\n", 
+                        prev_addr, region_end, cfg_byte);
+                    
+                    prev_addr = region_end;
                 }
             }
-
-            uint64 return_addr = vmm->mepc.val;  // Where we're returning to
+            
+            // Check for page fault at return address
+            uint64 return_addr = vmm->mepc.val;
             uint64 region_start = 0;
-            int found_violation = 0;
             
-            for(int cfg_idx = 0; cfg_idx < 8; cfg_idx += 2) {
-                uint64 pmpcfg = vmm->pmpcfg[cfg_idx].val;
-                for(int entry = 0; entry < 8; entry++) {
-                    int pmpaddr_idx = (cfg_idx / 2) * 8 + entry;
-                    if(pmpaddr_idx >= 64) break;
+            for(int i = 0; i < 64; i++) {
+                uint64 pmpaddr_val = vmm->pmpaddr[i].val;
+                
+                if(pmpaddr_val != 0) {
+                    int cfg_reg_idx = (i / 8) * 2;
+                    int cfg_byte_idx = i % 8;
                     
-                    uint64 cfg_byte = (pmpcfg >> (entry * 8)) & 0xFF;
-                    if(cfg_byte != 0) {
-                        uint64 pmpaddr = vmm->pmpaddr[pmpaddr_idx].val;
-                        uint64 region_end = pmpaddr << 2;
-                        
-                        // Check if return address falls in this region
-                        if(return_addr >= region_start && return_addr < region_end) {
-                            // Check execute permission (bit 2)
-                            if((cfg_byte & 0x4) == 0) {  // No execute permission
-                                found_violation = 1;
-                                printf("Page Fault Occured. Probably due to PMP Violation\n");
-                                printf("Accessing Address: %p\n", return_addr);
-                                break;
-                            }
+                    uint64 pmpcfg = vmm->pmpcfg[cfg_reg_idx].val;
+                    uint64 cfg_byte = (pmpcfg >> (cfg_byte_idx * 8)) & 0xFF;
+                    uint64 region_end = pmpaddr_val << 2;
+                    
+                    if(return_addr >= region_start && return_addr < region_end) {
+                        if((cfg_byte & 0x4) == 0) {
+                            printf("Page Fault Occured. Probably due to PMP Violation\n");
+                            printf("Accessing Address: %p\n", return_addr);
+                            kill(p->pid);
+                            return;
                         }
-                        region_start = region_end;
                     }
+                    
+                    region_start = region_end;
                 }
-                if(found_violation) break;
-            }
-            
-            if(found_violation) {
-                kill(p->pid);
-                return;
             }
         }
     } //csrwrite
