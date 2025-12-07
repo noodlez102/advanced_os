@@ -279,7 +279,7 @@ void pmp_apply_rules(pagetable_t pt) {
         int X = (cfg_byte >> 2) & 0x1;
         
         // If no permissions for S/U mode, unmap this region
-        if(R == 0 && W == 0 && X == 0) {
+        // if(R == 0 && W == 0 && X == 0) {
             // Unmap pages in this region that fall within 0x80000000-0x80400000
             for(uint64 va = region_start; va < region_end; va += PGSIZE) {
                 if(va >= 0x80000000 && va < 0x80400000) {
@@ -289,7 +289,7 @@ void pmp_apply_rules(pagetable_t pt) {
                     }
                 }
             }
-        }
+        // }
         
         prev_addr = region_end;
     }
