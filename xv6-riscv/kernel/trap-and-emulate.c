@@ -248,6 +248,7 @@ void uvmcopy_copmp(pagetable_t old, pagetable_t new, uint64 sz){
 
 void pmp_apply_rules(pagetable_t pt) {
     uint64 base_addr = 0x80000000;
+    base_addr=base_addr+1;
 }
 pagetable_t vmm_pagetable_backup(void){
     return vmm->backuppagetable;
