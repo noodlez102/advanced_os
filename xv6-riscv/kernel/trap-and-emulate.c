@@ -269,10 +269,10 @@ void pmp_apply_rules(pagetable_t pt) {
         
         if(pmpaddr_val == 0) continue;
         
-        int cfg_reg_idx = (i / 8) * 2;
+        // int cfg_reg_idx = (i / 8) * 2;
         // int cfg_byte_idx = i % 8;
         
-        uint64 pmpcfg = vmm->pmpcfg[cfg_reg_idx].val;
+        // uint64 pmpcfg = vmm->pmpcfg[cfg_reg_idx].val;
         // uint64 cfg_byte = (pmpcfg >> (cfg_byte_idx * 8)) & 0xFF;
         
         // int A = (cfg_byte >> 3) & 0x3;
