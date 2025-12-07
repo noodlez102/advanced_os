@@ -55,12 +55,12 @@ usertrap(void)
           printf("Page Fault Occured. Probably due to PMP Violation\n");
           printf("Accessing Address: %p\n", r_stval());
           kill(p->pid);
-          // p->pagetable= vmm_pagetable_backup();
+          p->pagetable= vmm_pagetable_backup();
 
       } else {
           printf("usertrap(): unexpected page fault\n");
           kill(p->pid);
-          // p->pagetable= vmm_pagetable_backup();
+          p->pagetable= vmm_pagetable_backup();
       }
   }else if (p->proc_te_vm == 1 && (r_scause() == 2 || r_scause() == 1))
   {
