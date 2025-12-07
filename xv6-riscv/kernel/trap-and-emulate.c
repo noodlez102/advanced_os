@@ -248,7 +248,37 @@ void uvmcopy_copmp(pagetable_t old, pagetable_t new, uint64 sz){
 
 void pmp_apply_rules(pagetable_t pt) {
     uint64 base_addr = 0x80000000;
-    base_addr=base_addr+1;
+    uint64 end_addr = vmm->pmpaddr[0].val;
+    uint64 cfg = vmm->pmpcfg[0].val;
+    cfg = cfg & 0xFF0;
+    cfg = cfg >> 8;
+    for (uint64 i = base_addr; i < end_addr; i += PGSIZE) {
+        //printf("Checking address: 0x%lx\n", i);
+
+        pte_t *pte = walk(vmm->pagetable, i, 0);
+        if (pte && (*pte & PTE_V)) {  // Ensure the PTE is valid
+            //printf("Original PTE at address 0x%lx: 0x%lx\n", i, *pte);
+
+            uint64 new_pte = PA2PTE(PTE2PA(*pte)) | PTE_V;
+
+            // Set new permissions based on the configuration
+            if (cfg & PTE_R) {
+                //printf(" Updated Read permissionn");
+                new_pte |= PTE_R;
+            }
+            if (cfg & PTE_W) {
+                //printf("Updated Write permission\n");
+                new_pte |= PTE_W;
+            }
+            if (cfg & PTE_X) {
+                //printf("Updated Execute permission\n");
+                new_pte |= PTE_X;
+            }
+
+            *pte = new_pte;
+
+        } 
+    }
 }
 pagetable_t vmm_pagetable_backup(void){
     return vmm->backuppagetable;
@@ -287,8 +317,8 @@ void do_pmp_switch(struct proc *p){
         vmm->backuppagetable = p->pagetable;
         vmm->pagetable = proc_pagetable(p);
         uvmcopy_copmp(p->pagetable, vmm->pagetable, p->sz);
-        //pmp_apply_rules(vmm->pagetable);
-        uvmunmap(vmm->pagetable, vmm->pmpaddr[0].val, 1, 0);
+        pmp_apply_rules(vmm->pagetable);
+        //uvmunmap(vmm->pagetable, 0x0000000080000000, 1, 0);
     }
     
     p->pagetable = vmm->pagetable;
