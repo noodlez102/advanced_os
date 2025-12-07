@@ -288,7 +288,7 @@ void do_pmp_switch(struct proc *p){
         vmm->pagetable = proc_pagetable(p);
         uvmcopy_copmp(p->pagetable, vmm->pagetable, p->sz);
         //pmp_apply_rules(vmm->pagetable);
-        uvmunmap(vmm->pagetable, 0x0000000080000000, 1, 0);
+        uvmunmap(vmm->pagetable, vmm->pmpaddr[0].val, 1, 0);
     }
     
     p->pagetable = vmm->pagetable;
