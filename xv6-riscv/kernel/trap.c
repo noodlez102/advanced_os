@@ -49,7 +49,7 @@ usertrap(void)
   
   // save user program counter.
   p->trapframe->epc = r_sepc();
-  if (p->proc_te_vm == 1 (r_scause() == 12 || r_scause() == 13 || r_scause() == 15)) { //for load and store and inst pg faults
+  if (p->proc_te_vm == 1 && (r_scause() == 12 || r_scause() == 13 || r_scause() == 15)) { //for load and store and inst pg faults
       // Instruction/Load/Store page fault
       if(is_pmp_configured()) {
           printf("Page Fault Occured. Probably due to PMP Violation\n");
