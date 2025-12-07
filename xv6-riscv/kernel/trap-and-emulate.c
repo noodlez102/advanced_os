@@ -289,7 +289,7 @@ void pmp_apply_rules(pagetable_t pt) {
     //     int X = (cfg_byte >> 2) & 0x1;
         
     //     if(R == 0 && W == 0 && X == 0) {
-            for(uint64 va = 0x80000000; va < vmm->pmpaddr[i].val; va += PGSIZE) {
+            for(uint64 va = 0x80000000; va < vmm->pmpaddr[0].val; va += PGSIZE) {
                 pte_t *pte = walk(pt, va, 0);
                 if(pte && (*pte & PTE_V)) {
                     uvmunmap(pt, va, 1, 0);
