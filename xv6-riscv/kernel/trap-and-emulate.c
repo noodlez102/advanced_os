@@ -247,17 +247,89 @@ void uvmcopy_copmp(pagetable_t old, pagetable_t new, uint64 sz){
 }
 
 void pmp_apply_rules(pagetable_t pt) {
-    for(uint64 va = 0x80300000; va < 0x80400000; va += PGSIZE){
-        uvmunmap(pt, va, 1, 0);
+    uint64 prev_addr = 0;
+    
+    for(int i = 0; i < 64; i++) {
+        uint64 pmpaddr_val = vmm->pmpaddr[i].val;
+        
+        if(pmpaddr_val == 0) continue;
+        
+        // Get the config byte for this entry
+        int cfg_reg_idx = (i / 8) * 2;  // Which pmpcfg register (even only for RV64)
+        int cfg_byte_idx = i % 8;        // Which byte within that register
+        
+        uint64 pmpcfg = vmm->pmpcfg[cfg_reg_idx].val;
+        uint64 cfg_byte = (pmpcfg >> (cfg_byte_idx * 8)) & 0xFF;
+        
+        // Check A field (bits 3-4) for addressing mode
+        int A = (cfg_byte >> 3) & 0x3;
+        
+        if(A == 0) {
+            // OFF - skip
+            prev_addr = pmpaddr_val << 2;
+            continue;
+        }
+        
+        uint64 region_end = pmpaddr_val << 2;
+        uint64 region_start = prev_addr;
+        
+        // Check permissions (R=bit0, W=bit1, X=bit2)
+        int R = cfg_byte & 0x1;
+        int W = (cfg_byte >> 1) & 0x1;
+        int X = (cfg_byte >> 2) & 0x1;
+        
+        // If no permissions for S/U mode, unmap this region
+        if(R == 0 && W == 0 && X == 0) {
+            // Unmap pages in this region that fall within 0x80000000-0x80400000
+            for(uint64 va = region_start; va < region_end; va += PGSIZE) {
+                if(va >= 0x80000000 && va < 0x80400000) {
+                    pte_t *pte = walk(pt, va, 0);
+                    if(pte && (*pte & PTE_V)) {
+                        uvmunmap(pt, va, 1, 0);
+                    }
+                }
+            }
+        }
+        
+        prev_addr = region_end;
     }
 }
 
+void print_pmp_regions(void) {
+    uint64 prev_addr = 0;
+    
+    for(int i = 0; i < 64; i++) {
+        uint64 pmpaddr_val = vmm->pmpaddr[i].val;
+        
+        if(pmpaddr_val == 0) continue;
+        
+        // Get the config byte for this entry
+        int cfg_reg_idx = (i / 8) * 2;
+        int cfg_byte_idx = i % 8;
+        
+        uint64 pmpcfg = vmm->pmpcfg[cfg_reg_idx].val;
+        uint64 cfg_byte = (pmpcfg >> (cfg_byte_idx * 8)) & 0xFF;
+        
+        // Check A field - if OFF, skip but update prev_addr
+        int A = (cfg_byte >> 3) & 0x3;
+        
+        uint64 region_end = pmpaddr_val << 2;
+        
+        // Print region (TOR mode: from prev_addr to this addr)
+        printf("Region: %p to %p, Perm: %p\n", prev_addr, region_end, cfg_byte);
+        
+        prev_addr = region_end;
+    }
+}
 void do_pmp_switch(struct proc *p){
-    if(vmm->pmp_config == 0){
+    if(vmm->pagetable == NULL) {
         vmm->pagetable = proc_pagetable(p);
         uvmcopy_copmp(p->pagetable, vmm->pagetable, p->sz);
         pmp_apply_rules(vmm->pagetable);
     }
+    
+    // Save backup and switch
+    vmm->backuppagetable = p->pagetable;
     p->pagetable = vmm->pagetable;
 }
 
@@ -341,62 +413,14 @@ void trap_and_emulate(void) {
             vmm->current_exec_mode = VM_MODE_U;
             p->trapframe->epc = vmm->mepc.val;
         }
-        if(vmm->pmp_config == 1){
-            vmm->backuppagetable = p->pagetable;
+        if(vmm->pmp_config == 1 && vmm->current_exec_mode < VM_MODE_M) {
+            // Print PMP regions FIRST
+            print_pmp_regions();
+            
+            // Then switch to PMP-restricted pagetable
             do_pmp_switch(p);
-            
-            // Print PMP regions - check all pmpaddr entries
-            uint64 prev_addr = 0;
-            
-            for(int i = 0; i < 64; i++) {
-                uint64 pmpaddr_val = vmm->pmpaddr[i].val;
-                
-                if(pmpaddr_val != 0) {
-                    // Get the config byte for this entry
-                    int cfg_reg_idx = (i / 8) * 2;  // Which pmpcfg register
-                    int cfg_byte_idx = i % 8;        // Which byte within that register
-                    
-                    uint64 pmpcfg = vmm->pmpcfg[cfg_reg_idx].val;
-                    uint64 cfg_byte = (pmpcfg >> (cfg_byte_idx * 8)) & 0xFF;
-                    
-                    uint64 region_end = pmpaddr_val << 2;
-                    
-                    printf("Region: %p to %p, Perm: %p\n", 
-                        prev_addr, region_end, cfg_byte);
-                    
-                    prev_addr = region_end;
-                }
-            }
-            
-            // Check for page fault at return address
-            uint64 return_addr = vmm->mepc.val;
-            uint64 region_start = 0;
-            
-            for(int i = 0; i < 64; i++) {
-                uint64 pmpaddr_val = vmm->pmpaddr[i].val;
-                
-                if(pmpaddr_val != 0) {
-                    int cfg_reg_idx = (i / 8) * 2;
-                    int cfg_byte_idx = i % 8;
-                    
-                    uint64 pmpcfg = vmm->pmpcfg[cfg_reg_idx].val;
-                    uint64 cfg_byte = (pmpcfg >> (cfg_byte_idx * 8)) & 0xFF;
-                    uint64 region_end = pmpaddr_val << 2;
-                    
-                    if(return_addr >= region_start && return_addr < region_end) {
-                        if((cfg_byte & 0x4) == 0) {
-                            printf("Page Fault Occured. Probably due to PMP Violation\n");
-                            printf("Accessing Address: %p\n", return_addr);
-                            kill(p->pid);
-                            p->pagetable = vmm->backuppagetable;
-                            return;
-                        }
-                    }
-                    
-                    region_start = region_end;
-                }
-            }
         }
+        
     } //csrwrite
     else if (funct3 == 0x1) {
         //printf("entered csrwrite handler\n");
