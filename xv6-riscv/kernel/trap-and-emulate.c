@@ -365,15 +365,41 @@ void trap_and_emulate(void) {
                 }
             }
 
-        uint64 return_addr = p->trapframe->epc;
-        if(return_addr >= 0x80300000 && return_addr <= 0x8040000) {  // Adjust based on your restricted region
-            printf("Page Fault Occured. Probably due to PMP Violation\n");
-            printf("Accessing Address: %p\n", return_addr);
-            kill(p->pid);
-            return;
-        }
-        p->pagetable=vmm->backuppagetable;
-
+            uint64 return_addr = vmm->mepc.val;  // Where we're returning to
+            uint64 region_start = 0;
+            int found_violation = 0;
+            
+            for(int cfg_idx = 0; cfg_idx < 8; cfg_idx += 2) {
+                uint64 pmpcfg = vmm->pmpcfg[cfg_idx].val;
+                for(int entry = 0; entry < 8; entry++) {
+                    int pmpaddr_idx = (cfg_idx / 2) * 8 + entry;
+                    if(pmpaddr_idx >= 64) break;
+                    
+                    uint64 cfg_byte = (pmpcfg >> (entry * 8)) & 0xFF;
+                    if(cfg_byte != 0) {
+                        uint64 pmpaddr = vmm->pmpaddr[pmpaddr_idx].val;
+                        uint64 region_end = pmpaddr << 2;
+                        
+                        // Check if return address falls in this region
+                        if(return_addr >= region_start && return_addr < region_end) {
+                            // Check execute permission (bit 2)
+                            if((cfg_byte & 0x4) == 0) {  // No execute permission
+                                found_violation = 1;
+                                printf("Page Fault Occured. Probably due to PMP Violation\n");
+                                printf("Accessing Address: %p\n", return_addr);
+                                break;
+                            }
+                        }
+                        region_start = region_end;
+                    }
+                }
+                if(found_violation) break;
+            }
+            
+            if(found_violation) {
+                kill(p->pid);
+                return;
+            }
         }
     } //csrwrite
     else if (funct3 == 0x1) {
