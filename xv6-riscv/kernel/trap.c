@@ -51,7 +51,7 @@ usertrap(void)
   p->trapframe->epc = r_sepc();
   uint64 scause = r_scause();
   printf("Scause is %d\n",scause);
-  if(scause == 12 || scause == 13 || scause == 15) {  // Instruction/Load/Store page fault
+  if(scause == 9 || scause == 13 || scause == 15) {  // Instruction/Load/Store page fault
       if(is_pmp_configured()) {
           printf("Page Fault Occured. Probably due to PMP Violation\n");
           printf("Accessing Address: %p\n", r_stval());
