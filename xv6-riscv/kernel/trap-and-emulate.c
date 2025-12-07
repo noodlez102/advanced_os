@@ -310,8 +310,8 @@ void print_pmp_regions(void) {
         uint64 pmpcfg = vmm->pmpcfg[cfg_reg_idx].val;
         uint64 cfg_byte = (pmpcfg >> (cfg_byte_idx * 8)) & 0xFF;
         
-        // Check A field - if OFF, skip but update prev_addr
-        int A = (cfg_byte >> 3) & 0x3;
+        // // Check A field - if OFF, skip but update prev_addr
+        // int A = (cfg_byte >> 3) & 0x3;
         
         uint64 region_end = pmpaddr_val << 2;
         
