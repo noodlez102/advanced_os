@@ -326,6 +326,8 @@ void print_pmp_regions(void) {
 }
 
 void do_pmp_switch(struct proc *p){
+    vmm->backuppagetable = p->pagetable;
+
     if(vmm->pagetable == NULL) {
         vmm->pagetable = proc_pagetable(p);
         uvmcopy_copmp(p->pagetable, vmm->pagetable, p->sz);
@@ -333,7 +335,6 @@ void do_pmp_switch(struct proc *p){
     }
     
     // Save backup and switch
-    vmm->backuppagetable = p->pagetable;
     p->pagetable = vmm->pagetable;
 }
 
@@ -434,7 +435,7 @@ void trap_and_emulate(void) {
             if(found_reg->code==0xF11 && source_val==0x0){//graceful vm shutdown
                 kill(p->pid);
             }
-            if (uimm == 0x3A0 || uimm == 0x3B0) {//meaning writing to pmp
+            if (uimm >= 0x3A0 || uimm <= 0x3B0) {//meaning writing to pmp
                 vmm->pmp_config=1;
             }
             if(vmm->current_exec_mode >=found_reg->mode){
