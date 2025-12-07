@@ -259,7 +259,7 @@ void uvmcopy_copmp(pagetable_t old, pagetable_t new, uint64 sz){
     }
  err:
   uvmunmap(new, 0, i / PGSIZE, 1);
-  return -1;
+  return ;
 }
 
 void pmp_apply_rules(pagetable_t pt) {
