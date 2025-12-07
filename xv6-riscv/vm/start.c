@@ -36,9 +36,9 @@ start()
 
  // CSE536: Uncomment to test PMP 
   // Test 1
-  w_pmpaddr0(0x0);
-  w_pmpaddr1(0x00100000 >> 2);
-  w_pmpcfg0(0x0800);
+  // w_pmpaddr0(0x0);
+  // w_pmpaddr1(0x00100000 >> 2);
+  // w_pmpcfg0(0x0800);
 
   // // Test 2
     // w_pmpaddr0(0x80000000 >> 2);
@@ -46,9 +46,9 @@ start()
     // w_pmpcfg0(0x0800);
 
   // // Test 3
-  // w_pmpaddr0(0x00100000 >> 2);
-  // w_pmpaddr1(0x00200000 >> 2);
-  // w_pmpcfg0(0x0800);
+  w_pmpaddr0(0x00100000 >> 2);
+  w_pmpaddr1(0x00200000 >> 2);
+  w_pmpcfg0(0x0800);
 
   // // Test 4
   // w_pmpaddr0(0x00200000 >> 2);
