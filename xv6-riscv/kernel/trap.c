@@ -54,10 +54,10 @@ usertrap(void)
       if(is_pmp_configured()) {
           printf("Page Fault Occured. Probably due to PMP Violation\n");
           printf("Accessing Address: %p\n", r_stval());
-          setkilled(p);
+          kill(p->pid);
       } else {
           printf("usertrap(): unexpected page fault\n");
-          setkilled(p);
+          kill(p->pid);
       }
   }
   if (p->proc_te_vm == 1 && (r_scause() == 2 || r_scause() == 1))

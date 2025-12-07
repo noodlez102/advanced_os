@@ -321,6 +321,7 @@ void print_pmp_regions(void) {
         prev_addr = region_end;
     }
 }
+
 void do_pmp_switch(struct proc *p){
     if(vmm->pagetable == NULL) {
         vmm->pagetable = proc_pagetable(p);
