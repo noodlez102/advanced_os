@@ -274,9 +274,9 @@ void pmp_apply_rules(pagetable_t pt) {
         uint64 region_start = prev_addr;
         
         // Check permissions (R=bit0, W=bit1, X=bit2)
-        int R = cfg_byte & 0x1;
-        int W = (cfg_byte >> 1) & 0x1;
-        int X = (cfg_byte >> 2) & 0x1;
+        // int R = cfg_byte & 0x1;
+        // int W = (cfg_byte >> 1) & 0x1;
+        // int X = (cfg_byte >> 2) & 0x1;
         
         // If no permissions for S/U mode, unmap this region
         // if(R == 0 && W == 0 && X == 0) {
