@@ -399,7 +399,7 @@ void trap_and_emulate(void) {
                     kill(p->pid);
                 }
             }
-            p->pagetable=vmm->pagetable;
+            //p->pagetable=vmm->pagetable;
         }
     }//MRET
     else if (funct3 == 0 && uimm == 0x302) {
