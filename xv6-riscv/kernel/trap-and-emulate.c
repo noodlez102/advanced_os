@@ -262,41 +262,41 @@ void uvmcopy_copmp(pagetable_t old, pagetable_t new, uint64 sz){
 }
 
 void pmp_apply_rules(pagetable_t pt) {
-    // uint64 prev_addr = 0;
+    uint64 prev_addr = 0;
     
-    // for(int i = 0; i < 64; i++) {
-    //     uint64 pmpaddr_val = vmm->pmpaddr[i].val;
+    for(int i = 0; i < 64; i++) {
+        uint64 pmpaddr_val = vmm->pmpaddr[i].val;
         
-    //     if(pmpaddr_val == 0) continue;
+        if(pmpaddr_val == 0) continue;
         
-    //     int cfg_reg_idx = (i / 8) * 2;
-    //     int cfg_byte_idx = i % 8;
+        int cfg_reg_idx = (i / 8) * 2;
+        // int cfg_byte_idx = i % 8;
         
-    //     uint64 pmpcfg = vmm->pmpcfg[cfg_reg_idx].val;
-    //     uint64 cfg_byte = (pmpcfg >> (cfg_byte_idx * 8)) & 0xFF;
+        uint64 pmpcfg = vmm->pmpcfg[cfg_reg_idx].val;
+        // uint64 cfg_byte = (pmpcfg >> (cfg_byte_idx * 8)) & 0xFF;
         
-    //     int A = (cfg_byte >> 3) & 0x3;
+        // int A = (cfg_byte >> 3) & 0x3;
         
-    //     uint64 region_end = pmpaddr_val << 2;
-    //     uint64 region_start = prev_addr;
+        uint64 region_end = pmpaddr_val << 2;
+        uint64 region_start = prev_addr;
         
-    //     prev_addr = region_end;
+        prev_addr = region_end;
         
-    //     if(A == 0) continue;  
+        // if(A == 0) continue;  
         
-    //     int R = cfg_byte & 0x1;
-    //     int W = (cfg_byte >> 1) & 0x1;
-    //     int X = (cfg_byte >> 2) & 0x1;
+        // int R = cfg_byte & 0x1;
+        // int W = (cfg_byte >> 1) & 0x1;
+        // int X = (cfg_byte >> 2) & 0x1;
         
-    //     if(R == 0 && W == 0 && X == 0) {
-            for(uint64 va = 0x80000000; va < vmm->pmpaddr[0].val; va += PGSIZE) {
+        // if(R == 0 && W == 0 && X == 0) {
+            for(uint64 va = region_start; va < region_end; va += PGSIZE) {
                 pte_t *pte = walk(pt, va, 0);
                 if(pte && (*pte & PTE_V)) {
                     uvmunmap(pt, va, 1, 0);
                 }
             }
-    //     }
-    // }
+        // }
+    }
 }
 pagetable_t vmm_pagetable_backup(void){
     return vmm->backuppagetable;
