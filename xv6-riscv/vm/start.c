@@ -46,14 +46,14 @@ start()
     // w_pmpcfg0(0x0800);
 
   // // Test 3
-  w_pmpaddr0(0x00100000 >> 2);
-  w_pmpaddr1(0x00200000 >> 2);
-  w_pmpcfg0(0x0800);
+  // w_pmpaddr0(0x00100000 >> 2);
+  // w_pmpaddr1(0x00200000 >> 2);
+  // w_pmpcfg0(0x0800);
 
   // // Test 4
-  // w_pmpaddr0(0x00200000 >> 2);
-  // w_pmpaddr1(0x00300000 >> 2);
-  // w_pmpcfg0(0x0800);
+  w_pmpaddr0(0x00200000 >> 2);
+  w_pmpaddr1(0x00300000 >> 2);
+  w_pmpcfg0(0x0800);
 
   // Test 5
   //w_pmpaddr1(0x80100000 >> 2);

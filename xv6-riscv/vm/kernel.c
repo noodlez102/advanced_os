@@ -39,10 +39,10 @@ void usertrap(void) {
   int* page = (int *)kalloc();
   
   // Uncomment for Test 4 
-  // *page = *(int *)0x220000;
+  *page = *(int *)0x220000;
   
   // Uncomment for Test 3
-  *page = *(int *)0x110000;
+  // *page = *(int *)0x110000;
 
   usertrapret();
 }
